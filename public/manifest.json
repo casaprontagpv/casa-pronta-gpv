@@ -1,0 +1,52 @@
+{
+  "id": "com.casapronta.manutencao",
+  "name": "Casa Pronta - Gestão de Manutenções",
+  "short_name": "Casa Pronta",
+  "description": "Plataforma de gestão de manutenção imobiliária conectando inquilinos, imobiliárias e prestadores de serviço com linha do tempo e orçamentos.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Chamado",
+      "short_name": "Abrir Chamado",
+      "description": "Abrir chamado de manutenção para seu imóvel",
+      "url": "/?action=new-ticket",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Minha Agenda",
+      "short_name": "Agenda",
+      "description": "Consultar agendamentos de visitas",
+      "url": "/?action=agenda",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

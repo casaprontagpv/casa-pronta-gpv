@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+
+# Variáveis de ambiente — só o .env.example entra no repositório
+.env*
+!.env.example
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+*.log
+npm-debug.log*
