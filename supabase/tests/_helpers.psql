@@ -1,0 +1,100 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- Utilitários compartilhados pelos testes
+--
+-- Para exercitar RLS de verdade é preciso assumir o papel `authenticated` E
+-- injetar um JWT com o `sub` do usuário — é de lá que `auth.uid()` lê. Rodar
+-- como superusuário não testaria nada: superusuário ignora RLS.
+-- ════════════════════════════════════════════════════════════════════════════
+
+create schema if not exists tests;
+
+-- Entra na sessão como um usuário específico.
+create or replace function tests.authenticate_as(p_user_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', p_user_id::text,
+      'role', 'authenticated',
+      'aud', 'authenticated'
+    )::text,
+    true
+  );
+end;
+$$;
+
+-- Entra pelo e-mail, que é mais legível no corpo dos testes.
+create or replace function tests.authenticate_as_email(p_email text)
+returns void
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id from auth.users where email = p_email;
+  if v_id is null then
+    raise exception 'Usuário de teste não encontrado: %', p_email;
+  end if;
+  perform tests.authenticate_as(v_id);
+end;
+$$;
+
+-- Volta a ser superusuário para preparar cenário entre asserções.
+create or replace function tests.clear_authentication()
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', null, true);
+end;
+$$;
+
+-- Atalhos para os usuários do seed.
+create or replace function tests.mariana() returns uuid
+  language sql immutable as $$ select '11111111-1111-1111-1111-111111111111'::uuid $$;
+create or replace function tests.roberto() returns uuid
+  language sql immutable as $$ select '11111111-1111-1111-1111-111111111112'::uuid $$;
+create or replace function tests.camila() returns uuid
+  language sql immutable as $$ select '11111111-1111-1111-1111-111111111113'::uuid $$;
+create or replace function tests.andre() returns uuid
+  language sql immutable as $$ select '11111111-1111-1111-1111-111111111114'::uuid $$;
+create or replace function tests.alianca() returns uuid
+  language sql immutable as $$ select '22222222-2222-2222-2222-222222222221'::uuid $$;
+create or replace function tests.solar() returns uuid
+  language sql immutable as $$ select '22222222-2222-2222-2222-222222222222'::uuid $$;
+create or replace function tests.central() returns uuid
+  language sql immutable as $$ select '33333333-3333-3333-3333-333333333333'::uuid $$;
+create or replace function tests.carlos() returns uuid
+  language sql immutable as $$ select '44444444-4444-4444-4444-444444444441'::uuid $$;
+create or replace function tests.jose() returns uuid
+  language sql immutable as $$ select '44444444-4444-4444-4444-444444444442'::uuid $$;
+create or replace function tests.carlos_eduardo() returns uuid
+  language sql immutable as $$ select '44444444-4444-4444-4444-444444444443'::uuid $$;
+
+-- Chamados do seed.
+create or replace function tests.ticket_mariana() returns uuid
+  language sql immutable as $$ select 'd0000000-0000-0000-0000-000000000001'::uuid $$;
+create or replace function tests.ticket_roberto() returns uuid
+  language sql immutable as $$ select 'd0000000-0000-0000-0000-000000000002'::uuid $$;
+create or replace function tests.ticket_andre() returns uuid
+  language sql immutable as $$ select 'd0000000-0000-0000-0000-000000000003'::uuid $$;
+create or replace function tests.ticket_camila_solar() returns uuid
+  language sql immutable as $$ select 'd0000000-0000-0000-0000-000000000004'::uuid $$;
+
+create or replace function tests.tech_carlos() returns uuid
+  language sql immutable as $$ select 'c0000000-0000-0000-0000-000000000001'::uuid $$;
+create or replace function tests.tech_jose() returns uuid
+  language sql immutable as $$ select 'c0000000-0000-0000-0000-000000000002'::uuid $$;
+create or replace function tests.tech_carlos_eduardo() returns uuid
+  language sql immutable as $$ select 'c0000000-0000-0000-0000-000000000003'::uuid $$;
+
+-- Os testes rodam COMO `authenticated` para exercitar a RLS de verdade, então
+-- esse papel precisa enxergar o próprio schema de apoio. Tudo aqui vive dentro
+-- da transação do teste, que termina em ROLLBACK — nada disso chega ao banco real.
+grant usage on schema tests to authenticated, anon, service_role;
+grant execute on all functions in schema tests to authenticated, anon, service_role;

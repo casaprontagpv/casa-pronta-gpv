@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verificar:
-    name: Typecheck · Lint · Testes · Build
+  frontend:
+    name: Front-end · Typecheck · Lint · Testes · Build
     runs-on: ubuntu-latest
 
     steps:
@@ -40,3 +40,39 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  database:
+    name: Banco · Migrations · RLS · Máquina de estados
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Subir o Supabase local
+        # Aplica todas as migrations e o seed. Falha aqui = migration quebrada.
+        run: npx supabase start
+
+      - name: Testes de banco (pgTAP)
+        # Isolamento por papel, máquina de estados e conflito de agenda.
+        # É a prova de que nenhuma imobiliária enxerga a carteira da outra.
+        run: npx supabase test db
+
+      - name: Verificar que as migrations refletem o schema
+        # `db diff` vazio garante que ninguém alterou o banco pelo Studio sem
+        # gerar a migration correspondente.
+        run: |
+          DIFF=$(npx supabase db diff)
+          if [ -n "$DIFF" ]; then
+            echo "::error::O schema diverge das migrations. Rode 'npm run db:diff' e gere a migration."
+            echo "$DIFF"
+            exit 1
+          fi
+          echo "Schema e migrations em sincronia."

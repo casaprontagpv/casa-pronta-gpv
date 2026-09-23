@@ -4,8 +4,9 @@
 rodando em **Vercel + Supabase**, sem amarra a nenhuma stack proprietária, mantendo
 integralmente a regra de negócio documentada em [`CLAUDE.md`](../CLAUDE.md).
 
-**Status:** escopo aprovado em 2026-09-21. **Etapa 1 concluída.** Próxima: Etapa 2 (fundação Supabase),
-que depende de você criar a conta Supabase.
+**Status:** escopo aprovado em 2026-09-21. **Etapas 1 e 2 concluídas.** Próxima: Etapa 3 (autenticação).
+
+Projeto Google do AI Studio apagado. Conta e projeto Supabase criados.
 
 ---
 
@@ -22,6 +23,8 @@ que depende de você criar a conta Supabase.
 | **Play Store / TWA**                 | Fora do escopo. Backlog.                                                                                                                                                                                                                       |
 | **Dados de demo**                    | Removidos do app. Viram um _seed_ SQL usado apenas em ambiente de staging.                                                                                                                                                                     |
 | **Lacunas funcionais**               | Documentadas em [`LACUNAS-FUNCIONAIS.md`](./LACUNAS-FUNCIONAIS.md), **sem trabalho previsto**. O produto é apresentado no escopo funcional atual; novos casos de uso saem do uso real.                                                         |
+| **Conflito de agenda**               | **Proibição rígida.** Um técnico nunca pode ter duas janelas sobrepostas — sem exceção autorizada. Vira constraint `EXCLUDE` no Postgres (§3). Encostar não é sobrepor: 09–11 e 11–13 convivem.                                                |
+| **Ambientes**                        | **Um projeto Supabase** por enquanto, usado como desenvolvimento/homologação com o seed de demonstração. O projeto de produção, limpo, nasce na Etapa 8.                                                                                       |
 
 ---
 
@@ -238,7 +241,9 @@ _Não depende de Supabase. Deixa o projeto saudável antes de mexer em arquitetu
 - GitHub Actions: `typecheck` + `lint` + `test` + `build` em cada PR.
 - `git init`, `.gitignore` revisado, commit inicial.
 
-### Etapa 2 — Fundação Supabase
+### ✅ Etapa 2 — Fundação Supabase — CONCLUÍDA em 2026-09-23
+
+Detalhes de operação em [`supabase/README.md`](../supabase/README.md).
 
 - `supabase init`; migrations versionadas em `supabase/migrations/`.
 - Enums, tabelas, índices, a constraint `EXCLUDE` de agenda e a sequência de protocolo.
@@ -299,8 +304,9 @@ vínculo de inquilino quando o imóvel muda de locatário.
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel (runtime, só `/api/*`) | **NÃO**                 |
 | `SENTRY_DSN`                | Vercel                        | sim                     |
 
-Dois projetos Supabase: `casa-pronta-staging` (com seed) e `casa-pronta-prod` (sem).
-Migrations aplicadas pelo CI via Supabase CLI.
+**Hoje:** um único projeto Supabase, com o seed de demonstração, servindo como
+desenvolvimento/homologação. O projeto de produção — limpo, sem seed — nasce na Etapa 8.
+Migrations versionadas em `supabase/migrations/` e aplicadas via Supabase CLI.
 
 **O que vou precisar de você:** uma conta Supabase (o plano gratuito atende para começar; o Pro,
 US$ 25/mês, é o que dá backup diário — recomendo antes de entrar em produção real), uma conta
