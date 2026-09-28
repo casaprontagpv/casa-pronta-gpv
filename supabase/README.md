@@ -5,46 +5,69 @@ Schema, políticas RLS, máquina de estados e testes. Tudo versionado em
 
 ## O que é o "Supabase local"
 
-O Supabase é um Postgres com alguns serviços em volta (autenticação, API REST,
-Storage, Realtime, um painel web). O `supabase start` reproduz esse conjunto
-inteiro na sua máquina como **12 containers Docker**, para que schema, RLS e
-testes sejam desenvolvidos sem tocar em nenhum projeto na nuvem.
+O Supabase é um Postgres com serviços em volta (autenticação, API REST, Storage,
+Realtime, um painel web). O `supabase start` reproduz esse conjunto na sua máquina
+como containers Docker, para que schema, RLS e testes sejam desenvolvidos sem
+tocar em nenhum projeto na nuvem.
 
-**Pegada em disco: ~5,8 GB de imagens** (o Postgres tem 1,3 GB, o Studio 1,2 GB,
-o Storage 807 MB) **+ ~90 MB do volume de dados.** As imagens ficam no cache do
-Docker mesmo com tudo parado; `npm run db:purge` remove.
+**`npm run dev` não precisa de nada disso.** O front-end ainda lê do
+`localStorage`; o banco local só é necessário para mexer no schema ou rodar os
+testes pgTAP.
 
-Os 12 containers:
+### Perfis — suba só o que a tarefa exige
 
-| Container                             | Para quê                                               |
-| ------------------------------------- | ------------------------------------------------------ |
-| `db`                                  | O Postgres. É o único que guarda dado.                 |
-| `auth`                                | GoTrue — login, sessão, JWT                            |
-| `rest`                                | PostgREST — a API que o supabase-js consome            |
-| `storage`                             | Upload e download de arquivos                          |
-| `realtime`                            | Assinaturas de mudança em tabela                       |
-| `kong`                                | Gateway na porta 54321, na frente de todos os acima    |
-| `studio`                              | Painel web (localhost:54323)                           |
-| `pg_meta`                             | API de introspecção que o Studio usa                   |
-| `inbucket`                            | Caixa de e-mail falsa, para ver convites e recuperação |
-| `vector`, `analytics`, `edge_runtime` | Logs e Edge Functions — não usamos, mas sobem junto    |
+O `supabase start` puro sobe **12 containers**. Quase nenhum é necessário hoje.
 
-**Nada disso é necessário para rodar o app.** `npm run dev` funciona sem Docker;
-o front-end ainda lê do `localStorage`. O banco local só é preciso para mexer no
-schema ou rodar os testes pgTAP.
+| Comando                 | Containers | Para quê                                                  |
+| ----------------------- | ---------- | --------------------------------------------------------- |
+| `npm run db:start`      | **1**      | Postgres. Schema, migrations e testes pgTAP.              |
+| `npm run db:start:app`  | **6**      | + gateway, login, API REST, realtime, e-mail. Etapas 3–4. |
+| `npm run db:start:full` | **10**     | + Studio e a API que ele usa. Inspeção visual.            |
+
+O Postgres nunca é excluído: é obrigatório e a CLI não permite removê-lo.
+`pg_prove` não aparece na conta porque não é serviço — sobe e morre a cada teste.
+
+### O que não sobe em perfil nenhum
+
+Desligado direto no `config.toml`, não só nas flags:
+
+| Serviço        | Tamanho | Por que não usamos                                        |
+| -------------- | ------- | --------------------------------------------------------- |
+| `edge-runtime` | 686 MB  | O plano usa Vercel Functions, não Supabase Edge Functions |
+| `logflare`     | 615 MB  | Pipeline de logs; `docker logs` resolve no local          |
+| `vector`       | 137 MB  | Coletor que só alimenta o logflare                        |
+| `supavisor`    | —       | Pooler de conexão, relevante só em produção               |
+| `imgproxy`     | —       | Transformação de imagem, recurso pago                     |
+
+`npm run db:trim` remove essas imagens do cache. Como os serviços estão
+desligados na configuração, elas não voltam a ser baixadas.
+
+### Por que a imagem do Postgres tem 1,3 GB
+
+Não é um Postgres comum — é compilado com as extensões de que a plataforma
+depende (`pgtap`, `pgsodium`, `pgjwt`, `pg_graphql`, `supautils`, entre outras).
+Um `postgres:17-alpine` não serve: não traz nenhuma delas. E a CLI **fixa** a
+imagem: `config.toml` não oferece como trocá-la. Não há reaproveitamento possível
+de uma imagem Postgres que você já tenha.
+
+### Pegada em disco
+
+~4,5 GB de imagens com o trim aplicado, dos quais 1,3 GB é o Postgres e 1,23 GB
+o Studio. Mais ~90 MB do volume de dados. `npm run db:purge` remove tudo.
 
 ## Ciclo de vida
 
 ```bash
-npm run db:start    # sobe (requer Docker)
-npm run db:status   # o que está de pé
+npm run db:start    # perfil mínimo (requer Docker)
+npm run db:status   # o que está de pé e a política de reinício
 npm run db:test     # sobe se preciso, testa, e encerra se não estava de pé antes
 npm run db:stop     # para e remove os containers, mantendo os dados
 npm run db:down     # idem, mas descarta também o volume
-npm run db:purge    # remove tudo, inclusive as ~5,8 GB de imagens
+npm run db:trim     # remove as imagens que nenhum perfil usa
+npm run db:purge    # remove tudo, inclusive as imagens em uso
 ```
 
-O Studio fica em <http://localhost:54323>.
+O Studio, quando ligado, fica em <http://localhost:54323>.
 
 ### ⚠️ Por que existe o `scripts/db.sh` em vez de chamar a CLI direto
 

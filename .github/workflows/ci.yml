@@ -57,8 +57,9 @@ jobs:
         run: npm ci
 
       - name: Subir o Supabase local
-        # Aplica todas as migrations e o seed. Falha aqui = migration quebrada.
-        run: npx supabase start
+        # Perfil mínimo: só o Postgres. O CI não precisa de Studio, realtime nem
+        # gateway — economiza vários GB de pull a cada execução.
+        run: npx supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Testes de banco (pgTAP)
         # Isolamento por papel, máquina de estados e conflito de agenda.

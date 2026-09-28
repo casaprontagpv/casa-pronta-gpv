@@ -30,7 +30,7 @@ npm run dev          # http://localhost:3000
 | `npm run format`    | Prettier                                                |
 | `npm run test`      | Vitest                                                  |
 | `npm run check`     | typecheck + lint + test + build (o mesmo que o CI roda) |
-| `npm run db:start`  | Sobe o Supabase local (requer Docker)                   |
+| `npm run db:start`  | Sobe o Postgres local — 1 container (requer Docker)     |
 | `npm run db:test`   | Reset do banco + suíte pgTAP                            |
 | `npm run db:types`  | Regenera os tipos TypeScript a partir do schema         |
 
