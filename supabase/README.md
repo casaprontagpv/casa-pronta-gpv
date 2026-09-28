@@ -3,25 +3,79 @@
 Schema, políticas RLS, máquina de estados e testes. Tudo versionado em
 `migrations/`, aplicado pelo Supabase CLI.
 
-## Rodando localmente
+## O que é o "Supabase local"
 
-Requer **Docker** rodando.
+O Supabase é um Postgres com alguns serviços em volta (autenticação, API REST,
+Storage, Realtime, um painel web). O `supabase start` reproduz esse conjunto
+inteiro na sua máquina como **12 containers Docker**, para que schema, RLS e
+testes sejam desenvolvidos sem tocar em nenhum projeto na nuvem.
+
+**Pegada em disco: ~5,8 GB de imagens** (o Postgres tem 1,3 GB, o Studio 1,2 GB,
+o Storage 807 MB) **+ ~90 MB do volume de dados.** As imagens ficam no cache do
+Docker mesmo com tudo parado; `npm run db:purge` remove.
+
+Os 12 containers:
+
+| Container                             | Para quê                                               |
+| ------------------------------------- | ------------------------------------------------------ |
+| `db`                                  | O Postgres. É o único que guarda dado.                 |
+| `auth`                                | GoTrue — login, sessão, JWT                            |
+| `rest`                                | PostgREST — a API que o supabase-js consome            |
+| `storage`                             | Upload e download de arquivos                          |
+| `realtime`                            | Assinaturas de mudança em tabela                       |
+| `kong`                                | Gateway na porta 54321, na frente de todos os acima    |
+| `studio`                              | Painel web (localhost:54323)                           |
+| `pg_meta`                             | API de introspecção que o Studio usa                   |
+| `inbucket`                            | Caixa de e-mail falsa, para ver convites e recuperação |
+| `vector`, `analytics`, `edge_runtime` | Logs e Edge Functions — não usamos, mas sobem junto    |
+
+**Nada disso é necessário para rodar o app.** `npm run dev` funciona sem Docker;
+o front-end ainda lê do `localStorage`. O banco local só é preciso para mexer no
+schema ou rodar os testes pgTAP.
+
+## Ciclo de vida
 
 ```bash
-npm run db:start    # sobe Postgres, Auth, Storage e Studio; aplica migrations + seed
-npm run db:test     # reset + suíte pgTAP
-npm run db:stop     # derruba os containers
+npm run db:start    # sobe (requer Docker)
+npm run db:status   # o que está de pé
+npm run db:test     # sobe se preciso, testa, e encerra se não estava de pé antes
+npm run db:stop     # para e remove os containers, mantendo os dados
+npm run db:down     # idem, mas descarta também o volume
+npm run db:purge    # remove tudo, inclusive as ~5,8 GB de imagens
 ```
 
 O Studio fica em <http://localhost:54323>.
 
-| Comando            | O que faz                                                       |
-| ------------------ | --------------------------------------------------------------- |
-| `npm run db:reset` | Recria o banco do zero: todas as migrations + `seed.sql`        |
-| `npm run db:test`  | Reset seguido dos testes pgTAP                                  |
-| `npm run db:diff`  | Mostra divergência entre o banco e as migrations                |
-| `npm run db:types` | Regenera `src/lib/database.types.ts` a partir do schema         |
-| `npm run db:push`  | Publica as migrations no projeto remoto (exige `supabase link`) |
+### ⚠️ Por que existe o `scripts/db.sh` em vez de chamar a CLI direto
+
+A CLI do Supabase cria os containers com **`restart: unless-stopped`**. Isso faz
+com que eles **voltem sozinhos toda vez que o daemon do Docker sobe** — inclusive
+dias depois, sem ninguém pedir, consumindo CPU e memória em segundo plano. Parar
+pelo botão do Docker Desktop não resolve: o container só é parado, não removido,
+e o próximo start do daemon o ressuscita.
+
+`npm run db:start` passa `docker update --restart=no` nos containers do projeto
+logo após subir. A partir daí eles só rodam quando você mandar.
+
+Se em algum momento aparecerem containers `supabase_*_casa-pronta` que você não
+subiu, `npm run db:stop` resolve — ele remove, não apenas para.
+
+O script age **apenas** sobre containers com o label
+`com.supabase.cli.project=casa-pronta`. Nunca use `docker system prune` para
+limpar isto: levaria junto os volumes dos seus outros projetos.
+
+## Alternativa: não usar Docker
+
+Dá para trabalhar direto contra um projeto Supabase na nuvem, sem nada local:
+
+```bash
+npx supabase link --project-ref <ref>
+npm run db:push      # aplica as migrations no projeto remoto
+```
+
+O que se perde: os testes pgTAP (`supabase test db` exige banco local) e a
+possibilidade de recriar o banco do zero em segundos. Para mexer em RLS, o ciclo
+local é bem mais rápido e não arrisca o banco compartilhado.
 
 ## Estrutura
 

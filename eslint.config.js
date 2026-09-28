@@ -8,13 +8,7 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     // database.types.ts é gerado por `npm run db:types` — não se edita à mão.
-    ignores: [
-      'dist',
-      'node_modules',
-      'coverage',
-      'public/sw.js',
-      'src/lib/database.types.ts',
-    ],
+    ignores: ['dist', 'node_modules', 'coverage', 'public/sw.js', 'src/lib/database.types.ts'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

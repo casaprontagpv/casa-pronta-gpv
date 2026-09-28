@@ -76,3 +76,10 @@ jobs:
             exit 1
           fi
           echo "Schema e migrations em sincronia."
+
+      - name: Encerrar o Supabase
+        # `always()` para não deixar container de pé quando um passo acima falha.
+        # No runner efêmero do GitHub isso é higiene; na máquina de quem roda
+        # localmente, é o que evita o banco ficar rodando por dias.
+        if: always()
+        run: npx supabase stop --no-backup
