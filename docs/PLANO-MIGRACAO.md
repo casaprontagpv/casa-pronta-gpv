@@ -4,7 +4,9 @@
 rodando em **Vercel + Supabase**, sem amarra a nenhuma stack proprietária, mantendo
 integralmente a regra de negócio documentada em [`CLAUDE.md`](../CLAUDE.md).
 
-**Status:** escopo aprovado em 2026-09-21. **Etapas 1 e 2 concluídas.** Próxima: Etapa 3 (autenticação).
+**Status:** escopo aprovado em 2026-09-21. **Etapas 1 e 2 concluídas.**
+**Plano reordenado em 2026-09-28** para entregar uma versão utilizável em produção mais cedo e
+incrementar a partir dela — ver §5.
 
 Projeto Google do AI Studio apagado. Conta e projeto Supabase criados.
 
@@ -12,19 +14,21 @@ Projeto Google do AI Studio apagado. Conta e projeto Supabase criados.
 
 ## 0. Premissas aprovadas
 
-| Decisão                              | Definição                                                                                                                                                                                                                                      |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tenancy**                          | **Uma prestadora** (Casa Pronta). N imobiliárias, N imóveis, N inquilinos, N técnicos. Não há `company_id` no schema.                                                                                                                          |
-| **Acesso**                           | Sem auto-cadastro. Um **painel administrativo** da prestadora cria imobiliárias, imóveis, inquilinos e técnicos. O admin comunica a credencial pelo canal que preferir (WhatsApp). Convite por e-mail fica disponível como opção de um clique. |
-| **PWA**                              | Mantido e corrigido.                                                                                                                                                                                                                           |
-| **Serviços Google com autenticação** | **Fora do escopo.** Google Calendar (OAuth) e login com Google saem do código nesta fase e vão para o backlog (§10).                                                                                                                           |
-| **Deep links sem credencial**        | **Mantidos.** WhatsApp (`wa.me/...`) e Google Maps (`maps/search?api=1&query=...`) são URLs simples — sem API, sem chave, sem custo. São o que torna o app de campo do técnico útil.                                                           |
-| **Histórico de orçamentos**          | **Aprovado.** A tabela `quotes` guarda todas as versões; a interface mostra a vigente. Hoje "Editar Orçamento" sobrescreve o anterior — inclusive um reprovado, apagando o motivo da reprovação.                                               |
-| **Play Store / TWA**                 | Fora do escopo. Backlog.                                                                                                                                                                                                                       |
-| **Dados de demo**                    | Removidos do app. Viram um _seed_ SQL usado apenas em ambiente de staging.                                                                                                                                                                     |
-| **Lacunas funcionais**               | Documentadas em [`LACUNAS-FUNCIONAIS.md`](./LACUNAS-FUNCIONAIS.md), **sem trabalho previsto**. O produto é apresentado no escopo funcional atual; novos casos de uso saem do uso real.                                                         |
-| **Conflito de agenda**               | **Proibição rígida.** Um técnico nunca pode ter duas janelas sobrepostas — sem exceção autorizada. Vira constraint `EXCLUDE` no Postgres (§3). Encostar não é sobrepor: 09–11 e 11–13 convivem.                                                |
-| **Ambientes**                        | **Um projeto Supabase** por enquanto, usado como desenvolvimento/homologação com o seed de demonstração. O projeto de produção, limpo, nasce na Etapa 8.                                                                                       |
+| Decisão                              | Definição                                                                                                                                                                                                                                                                                            |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tenancy**                          | **Uma prestadora** (Casa Pronta). N imobiliárias, N imóveis, N inquilinos, N técnicos. Não há `company_id` no schema.                                                                                                                                                                                |
+| **Acesso**                           | Sem auto-cadastro. Um **painel administrativo** da prestadora cria imobiliárias, imóveis, inquilinos e técnicos. O admin comunica a credencial pelo canal que preferir (WhatsApp). Convite por e-mail fica disponível como opção de um clique.                                                       |
+| **PWA**                              | Mantido e corrigido.                                                                                                                                                                                                                                                                                 |
+| **Serviços Google com autenticação** | **Fora do escopo.** Google Calendar (OAuth) e login com Google saem do código nesta fase e vão para o backlog (§10).                                                                                                                                                                                 |
+| **Deep links sem credencial**        | **Mantidos.** WhatsApp (`wa.me/...`) e Google Maps (`maps/search?api=1&query=...`) são URLs simples — sem API, sem chave, sem custo. São o que torna o app de campo do técnico útil.                                                                                                                 |
+| **Histórico de orçamentos**          | **Aprovado.** A tabela `quotes` guarda todas as versões; a interface mostra a vigente. Hoje "Editar Orçamento" sobrescreve o anterior — inclusive um reprovado, apagando o motivo da reprovação.                                                                                                     |
+| **Play Store / TWA**                 | Fora do escopo. Backlog.                                                                                                                                                                                                                                                                             |
+| **Dados de demo**                    | Removidos do app. Viram um _seed_ SQL usado apenas em ambiente de staging.                                                                                                                                                                                                                           |
+| **Lacunas funcionais**               | Documentadas em [`LACUNAS-FUNCIONAIS.md`](./LACUNAS-FUNCIONAIS.md), **sem trabalho previsto**. O produto é apresentado no escopo funcional atual; novos casos de uso saem do uso real.                                                                                                               |
+| **Conflito de agenda**               | **Proibição rígida.** Um técnico nunca pode ter duas janelas sobrepostas — sem exceção autorizada. Vira constraint `EXCLUDE` no Postgres (§3). Encostar não é sobrepor: 09–11 e 11–13 convivem.                                                                                                      |
+| **Ambientes**                        | **Um projeto Supabase** por enquanto, usado como desenvolvimento/homologação com o seed de demonstração. O projeto de produção, limpo, nasce na Etapa 8.                                                                                                                                             |
+| **Região**                           | **`sa-east-1` (São Paulo).** ~50 ms a menos por consulta que `us-east-2`, e dado pessoal brasileiro (endereço residencial, fotos do interior do imóvel) permanece em solo brasileiro — evita a discussão de transferência internacional sob a LGPD. Região não se altera depois de criado o projeto. |
+| **Entrega**                          | **Incremental.** Um primeiro release completo e seguro vai ao ar, e os incrementos seguem a partir dele. Nada é publicado antes da autenticação real existir.                                                                                                                                        |
 
 ---
 
@@ -254,44 +258,90 @@ Detalhes de operação em [`supabase/README.md`](../supabase/README.md).
   "inquilino da Rua das Acácias não enxerga chamado da Av. Paulista". Esta suíte é a prova de que o
   isolamento de dados funciona, e roda no CI.
 
-### Etapa 3 — Autenticação real
+### Reordenação de 2026-09-28 — produção cedo, incrementos depois
+
+O plano original deixava o deploy para o fim. Dois motivos para mudar:
+
+1. **Sem o painel administrativo, a produção nasce inutilizável.** Não há auto-cadastro
+   (premissa §0): um banco de produção novo tem zero usuários e nenhuma forma de criar
+   o primeiro. A Etapa 7 não é refinamento — é o que destranca o sistema. Ela sobe.
+2. **Infraestrutura de deploy é trilho, não etapa final.** Configurada cedo, toda etapa
+   seguinte nasce publicável.
+
+**Nada vai ao ar antes da autenticação real existir.** O Marco 0 configura a Vercel mas
+não publica nada acessível — a primeira URL no ar já vem com login de verdade.
+
+#### Marco 0 — Trilho de produção · ~meio dia
+
+- `supabase link` + `db push` no projeto `sa-east-1`.
+- Projeto na Vercel, variáveis de ambiente, `vercel.json` (rewrite de SPA, headers de segurança).
+- Preview por branch **sem deploy de produção**. Sem URL pública enquanto o login for falso.
+
+#### Marco 1 — Primeiro release utilizável · ~8–10 dias
+
+Nesta ordem, cada item publicando em homologação ao concluir:
+
+| #   | Etapa                                               | Por que está aqui                                                                                 |
+| --- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | **Autenticação** (antiga Etapa 3)                   | Nada é publicável sem isto                                                                        |
+| 2   | **Painel administrativo** (antiga Etapa 7)          | Cria imobiliárias, imóveis, inquilinos e técnicos. Sem ele não há primeiro usuário                |
+| 3   | **Camada de dados** (antiga Etapa 4)                | Substitui o `localStorage`; o ciclo do chamado precisa fechar de ponta a ponta                    |
+| 4   | **Fotos no Storage** (antiga Etapa 5)               | Foto do vazamento e antes/depois são feature base — cortar seria regredir em relação ao protótipo |
+| 5   | **Notificações** (antiga Etapa 6)                   | Barato: tabela, trigger e RPC já existem desde a Etapa 2; falta só a leitura na interface         |
+| 6   | **PWA, domínio e observabilidade** (antiga Etapa 8) | Service worker corrigido, Sentry, e o apontamento do domínio                                      |
+
+Escopo mínimo coerente: o ciclo precisa fechar (abrir → analisar → orçar → aprovar →
+agendar → executar → concluir → avaliar). Remover qualquer fatia da camada de dados
+deixa chamados que nunca terminam.
+
+#### Marco 2+ — Incrementos, já com gente usando
+
+Backlog (§10) e [`LACUNAS-FUNCIONAIS.md`](./LACUNAS-FUNCIONAIS.md): métricas reais no lugar
+dos números fixos, PDF de orçamento e laudo, notificação por e-mail e WhatsApp, SLA,
+alçada de aprovação, controle de garantia.
+
+---
+
+### Detalhamento das etapas
+
+#### Autenticação
 
 - Cliente Supabase, `AuthProvider`, sessão persistida, refresh de token.
 - `/login` com e-mail + senha; "esqueci minha senha"; troca de senha no primeiro acesso.
-- Rotas protegidas por papel; portal derivado do papel.
-- Remoção de `PRESET_USERS`, das senhas universais `123`/`admin`, do login por nome parcial,
-  do "login com Google" simulado e do auto-cadastro.
+- Rotas protegidas por papel; portal derivado do papel, não de uma aba escolhida à mão.
+- Remoção de `PRESET_USERS`, das senhas universais `123`/`admin`, do login por nome parcial
+  e do auto-cadastro.
 
-### Etapa 4 — Camada de dados
-
-Substituição do `localStorage` pelo Supabase, em fatias entregáveis:
-
-**4a** chamados (listagem, detalhe, abertura) · **4b** timeline + chat + realtime ·
-**4c** parecer técnico e orçamento (envio, aprovação, reprovação) · **4d** agenda e conflito ·
-**4e** conclusão, aceite do inquilino e avaliação.
-
-### Etapa 5 — Fotos no Storage
-
-Upload com redução no cliente, URL assinada, galerias de antes/depois, limite de tamanho e quantidade.
-
-### Etapa 6 — Notificações persistidas
-
-Fan-out por trigger, badge com contagem real por usuário, marcar como lida, realtime.
-
-### Etapa 7 — Painel administrativo (tela nova)
+#### Painel administrativo
 
 CRUD de **imobiliárias**, **imóveis**, **inquilinos** (com vínculo ao imóvel) e **técnicos**.
 Criação de usuário via `/api/admin/users` (Vercel Function + `service_role`), com duas saídas:
 senha temporária exibida para copiar, ou convite por e-mail. Desativação de usuário e troca de
 vínculo de inquilino quando o imóvel muda de locatário.
 
-### Etapa 8 — PWA, deploy e observabilidade
+#### Camada de dados
 
-- Corrigir o service worker: _network-first_ para navegação, _cache-first_ só para assets com hash,
-  e versionamento de cache atrelado ao build (hoje o app serve a versão antiga após um deploy).
+Substituição do `localStorage` pelo Supabase, em fatias entregáveis:
+**a** chamados (listagem, detalhe, abertura) · **b** timeline + chat + realtime ·
+**c** parecer técnico e orçamento · **d** agenda e conflito ·
+**e** conclusão, aceite do inquilino e avaliação.
+
+#### Fotos no Storage
+
+Upload com redução no cliente (1600 px / JPEG 0.8), URL assinada, galerias de antes/depois,
+limite de tamanho e quantidade.
+
+#### Notificações
+
+Badge com contagem real por usuário, marcar como lida, realtime. O fan-out por trigger
+já existe desde a Etapa 2.
+
+#### PWA, deploy e observabilidade
+
+- Service worker: _network-first_ para navegação, _cache-first_ só para assets com hash.
 - `vercel.json`: rewrite de SPA, headers de segurança (CSP, HSTS, `X-Frame-Options`).
-- Ambientes: preview (branch) e produção, cada um com seu projeto Supabase.
-- Sentry para erros de frontend; `README.md` novo com setup, variáveis e runbook de deploy.
+- Projeto Supabase de produção, separado do de homologação.
+- Sentry para erros de frontend; runbook de deploy no `README.md`.
 
 ---
 
@@ -311,6 +361,32 @@ Migrations versionadas em `supabase/migrations/` e aplicadas via Supabase CLI.
 **O que vou precisar de você:** uma conta Supabase (o plano gratuito atende para começar; o Pro,
 US$ 25/mês, é o que dá backup diário — recomendo antes de entrar em produção real), uma conta
 Vercel, um domínio, e as credenciais do primeiro usuário admin da Casa Pronta.
+
+---
+
+## 6b. Criando o projeto Supabase em São Paulo
+
+O projeto `us-east-2` criado em 28/09 foi descartado antes de receber qualquer dado.
+Roteiro do substituto:
+
+1. <https://supabase.com/dashboard/new> — na mesma organização.
+2. **Name:** `casa-pronta` · **Region:** `South America (São Paulo)` — `sa-east-1`.
+3. **Database Password:** gere uma forte e guarde no seu gerenciador de senhas.
+   Ela não é recuperável: se perder, só dá para redefinir em Settings → Database.
+   **Não cole essa senha em conversa nenhuma** — ela é digitada direto no prompt do
+   `supabase link`.
+4. Copie o **project ref** da URL: `supabase.com/dashboard/project/‹ref›`.
+5. Apague o projeto de Ohio em Settings → General → Delete project, para não ficarem dois
+   com o mesmo nome.
+
+Depois, no repositório:
+
+```bash
+npx supabase link --project-ref <novo-ref>   # pede a senha no prompt
+npm run db:push                              # aplica as 9 migrations
+```
+
+`seed.sql` **não** vai junto: ele é só de desenvolvimento.
 
 ---
 
