@@ -27,9 +27,8 @@ Funcionando de ponta a ponta, contra o Supabase real:
 - Fotos em bucket **privado**, com redução no cliente e URL assinada.
 - Timeline, chat e notificações **ao vivo** — a página se atualiza sozinha.
 
-O que **ainda não** está no ar: nada. O projeto nunca foi publicado, por decisão
-— o combinado foi não publicar antes de existir autenticação de verdade. Ela
-existe desde `4d4f7f1`, então o deploy é o próximo passo (§4.1).
+**No ar desde 2026-09-30:** <https://casa-pronta-gpv.vercel.app>.
+Falta a primeira conta para que alguém consiga entrar — ver §4.1.
 
 ---
 
@@ -75,7 +74,8 @@ npm run db:stop        # desliga os containers
 | Painel administrativo        | `8d66d25`            | Criação de usuário com `service_role`, atrás de verificação de papel no banco      |
 | Camada de dados              | `b9b4dea`            | `localStorage` fora; timeline e chat passam a ser compartilhados de verdade        |
 | Fotos no Storage             | `c9bda57`            | Bucket privado, redução no cliente, URL assinada, EXIF descartado                  |
-| Realtime                     | _este_               | Timeline, chat e notificações ao vivo, com a RLS valendo também no WebSocket       |
+| Realtime                     | `ba53f54`            | Timeline, chat e notificações ao vivo, com a RLS valendo também no WebSocket       |
+| Primeiro deploy              | `d564f43`            | No ar na Vercel, com CSP, HSTS e a `service_role` comprovadamente fora do bundle   |
 
 **Verificação atual:** 131 testes de front (106 de unidade + 25 de integração),
 57 asserções pgTAP, `supabase db diff` limpo, build passando.
@@ -88,35 +88,42 @@ banco de produção nasce vazio.
 
 ## 4. O que falta
 
-### 4.1 Publicar na Vercel · **depende de você para começar**
+### 4.1 ✅ Publicado · falta a primeira conta
 
-**Objetivo.** Primeiro deploy, com homologação e produção separadas.
+**No ar:** <https://casa-pronta-gpv.vercel.app> · repositório
+`casaprontagpv/casa-pronta-gpv`, branch de produção `main`.
 
-**Suas ações** (não dá para fazer por você — exigem a sua conta):
+Variáveis cadastradas na Vercel (as únicas que o código lê — `src/lib/supabase.ts`
+e `api/_lib/adminAuth.ts`):
 
-1. Criar o projeto na Vercel a partir deste repositório. O `vercel.json` já
-   define build, rewrite de SPA e cabeçalhos; não mexa nas configurações pela
-   interface, senão o arquivo e o painel divergem.
-2. Cadastrar as variáveis em **Project Settings → Environment Variables**:
+| Variável                    | Escopo                | Observação                                        |
+| --------------------------- | --------------------- | ------------------------------------------------- |
+| `VITE_SUPABASE_URL`         | Preview + Production  | `https://cwigtsefbiajqfxqiqaa.supabase.co`        |
+| `VITE_SUPABASE_ANON_KEY`    | Preview + Production  | Pública por design; protegida pela RLS            |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Production apenas** | **Sem** prefixo `VITE_`. Ignora a RLS por inteiro |
 
-   | Variável                    | Escopo                | Observação                                        |
-   | --------------------------- | --------------------- | ------------------------------------------------- |
-   | `VITE_SUPABASE_URL`         | Preview + Production  | `https://cwigtsefbiajqfxqiqaa.supabase.co`        |
-   | `VITE_SUPABASE_ANON_KEY`    | Preview + Production  | Pública por design; protegida pela RLS            |
-   | `SUPABASE_SERVICE_ROLE_KEY` | **Production apenas** | **Sem** prefixo `VITE_`. Ignora a RLS por inteiro |
+Conferido contra o deploy real, não deduzido:
 
-   A `service_role` não pode passar por conversa, chat nem arquivo versionado.
-   Copie do painel do Supabase direto para o campo da Vercel.
+- Rewrite de SPA respondendo em rota profunda (`/admin`, `/login`, `/nova-senha`).
+- Os seis cabeçalhos de segurança do `vercel.json` presentes, com
+  `connect-src` liberando `wss://*.supabase.co` — é o que o realtime precisa.
+- `/api/admin/users`: `405` no GET, `401` no POST sem sessão. Recusa, não some.
+- **A `service_role` não está no bundle.** Verificado por busca no JavaScript
+  servido; lá estão só a URL e a anon key, ambas públicas por design.
 
-3. Depois do primeiro deploy, criar a conta do primeiro administrador seguindo
-   [`PRIMEIRO-ADMIN.md`](./PRIMEIRO-ADMIN.md). Sem ela não há como cadastrar
-   ninguém — o sistema não tem auto-cadastro, por decisão.
+**O que ainda falta — e é seu:** criar a conta do primeiro administrador
+seguindo [`PRIMEIRO-ADMIN.md`](./PRIMEIRO-ADMIN.md). O banco de produção nasceu
+vazio e o sistema não tem auto-cadastro, então hoje ninguém consegue entrar.
 
-**O que sobra para o agente.** Conferir o deploy: rewrite de SPA funcionando em
-rota profunda (`/admin` com F5), CSP sem bloqueio no console, `/api/admin/users`
-respondendo, e o WebSocket do realtime conectando — o `connect-src` do
-`vercel.json` já libera `wss://*.supabase.co`, mas isso precisa ser visto
-funcionando, não deduzido.
+> **Pendências de higiene**, nenhuma bloqueante:
+>
+> - Na tela de criação a Vercel aplica as variáveis aos três ambientes. Restrinja
+>   a `SUPABASE_SERVICE_ROLE_KEY` a **Production** em Settings → Environment
+>   Variables. Cada branch vira um Preview de URL pública, e a chave que ignora
+>   toda a RLS não precisa existir lá.
+> - O repositório do GitHub está **público**. Nada vazou — `.env*` está
+>   ignorado e não há JWT em arquivo versionado —, mas é uma decisão a tomar de
+>   propósito, não por omissão.
 
 ---
 
