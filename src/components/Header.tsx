@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CheckCheck, KeyRound, LogOut, PlusCircle, RotateCcw, Wrench } from 'lucide-react';
+import {
+  Bell,
+  CheckCheck,
+  KeyRound,
+  LogOut,
+  PlusCircle,
+  RotateCcw,
+  Settings,
+  Wrench,
+} from 'lucide-react';
 import { useApp } from '../context/useApp';
 import { useAuth } from '../auth/useAuth';
 import { ROLE_LABELS } from '../utils/helpers';
@@ -217,6 +226,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
               </div>
             )}
           </div>
+
+          {currentRole === 'empresa' && (
+            <Link
+              to="/admin"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+              title="Cadastros e acessos"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Administração</span>
+            </Link>
+          )}
 
           {podeAbrirChamado && (
             <button

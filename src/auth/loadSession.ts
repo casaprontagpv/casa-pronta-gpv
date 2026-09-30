@@ -1,6 +1,11 @@
 import { supabase } from '../lib/supabase';
 import type { AuthUser } from '../types';
-import { buildAuthUser, type AgencyBinding, type PropertyBinding, type ProfileRow } from './sessionUser';
+import {
+  buildAuthUser,
+  type AgencyBinding,
+  type PropertyBinding,
+  type ProfileRow,
+} from './sessionUser';
 
 /**
  * Carrega o perfil do usuário autenticado e os vínculos que definem o que ele enxerga.

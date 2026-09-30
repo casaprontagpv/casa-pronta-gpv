@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { AlertCircle, Eye, EyeOff, KeyRound, Loader2, LogIn, Mail, ShieldCheck, Wrench } from 'lucide-react';
+import {
+  AlertCircle,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  LogIn,
+  Mail,
+  ShieldCheck,
+  Wrench,
+} from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import { homePathForRole } from '../auth/portalRoutes';
 import { LoadingScreen } from '../components/LoadingScreen';

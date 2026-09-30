@@ -15,6 +15,7 @@ import { TechnicianView } from './components/views/TechnicianView';
 import { LoginPage } from './pages/LoginPage';
 import { RecoverPasswordPage } from './pages/RecoverPasswordPage';
 import { NewPasswordPage } from './pages/NewPasswordPage';
+import { AdminPage } from './pages/AdminPage';
 import { NewTicketModal } from './components/NewTicketModal';
 import { TicketDetailModal } from './components/TicketDetailModal';
 
@@ -106,6 +107,17 @@ const AppRoutes: React.FC = () => (
         <ProtectedRoute allow="prestador">
           <PortalShell>
             <TechnicianView />
+          </PortalShell>
+        </ProtectedRoute>
+      }
+    />
+
+    <Route
+      path="/admin"
+      element={
+        <ProtectedRoute allow="empresa">
+          <PortalShell>
+            <AdminPage />
           </PortalShell>
         </ProtectedRoute>
       }

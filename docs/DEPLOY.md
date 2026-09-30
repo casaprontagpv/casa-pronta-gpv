@@ -39,6 +39,12 @@ o projeto `sa-east-1` serve como homologação; o de produção nasce limpo, sem
 
 4. **Deployment Protection** → deixe os previews protegidos enquanto o produto não estiver no ar.
 
+### Depois do primeiro deploy
+
+O banco de produção nasce sem nenhum usuário, e o sistema não tem auto-cadastro.
+Ver [`PRIMEIRO-ADMIN.md`](./PRIMEIRO-ADMIN.md) — é um procedimento manual de dois
+minutos, executado uma vez na vida do sistema.
+
 ---
 
 ## Publicando o banco

@@ -110,7 +110,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(notifications));
   }, [notifications]);
 
-
   // Isolamento de dados por papel — a regra vive em src/domain/access.ts (CLAUDE.md §6).
   const userTickets = useMemo(
     () => filterTicketsForUser(tickets, currentUser),

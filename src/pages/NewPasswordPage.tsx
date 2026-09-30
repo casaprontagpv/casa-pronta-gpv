@@ -81,8 +81,8 @@ export const NewPasswordPage: React.FC = () => {
               <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
               <h3 className="text-sm font-bold text-slate-900">Link inválido ou expirado</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                O link de recuperação vale por uma hora e só pode ser usado uma vez. Peça um novo
-                em &quot;Esqueci minha senha&quot;.
+                O link de recuperação vale por uma hora e só pode ser usado uma vez. Peça um novo em
+                &quot;Esqueci minha senha&quot;.
               </p>
               <button
                 onClick={() => navigate('/recuperar-senha')}

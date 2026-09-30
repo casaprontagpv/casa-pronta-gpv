@@ -59,6 +59,15 @@ export default tseslint.config(
     },
   },
   {
+    // No servidor, `console` É o mecanismo de log — é assim que a Vercel coleta.
+    // O registro de quem criou qual conta é trilha de auditoria, não depuração.
+    files: ['api/**/*.ts'],
+    languageOptions: { globals: globals.node },
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['vite.config.ts', 'eslint.config.js'],
     languageOptions: {
       globals: globals.node,

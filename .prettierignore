@@ -4,3 +4,4 @@ coverage
 package-lock.json
 src/lib/database.types.ts
 .claude
+supabase/.temp

@@ -47,6 +47,7 @@ Ver [`.env.example`](.env.example). Nenhuma é obrigatória enquanto o app lê d
 | [`docs/PLANO-MIGRACAO.md`](docs/PLANO-MIGRACAO.md)         | Plano de migração para Vercel + Supabase                                                                       |
 | [`docs/LACUNAS-FUNCIONAIS.md`](docs/LACUNAS-FUNCIONAIS.md) | O que o sistema **não** faz, por decisão                                                                       |
 | [`docs/GUIA-GOOGLE-CLOUD.md`](docs/GUIA-GOOGLE-CLOUD.md)   | Limpeza do projeto Google herdado do AI Studio                                                                 |
+| [`docs/PRIMEIRO-ADMIN.md`](docs/PRIMEIRO-ADMIN.md)         | Como criar a primeira conta num banco de produção vazio                                                        |
 | [`supabase/README.md`](supabase/README.md)                 | Schema, RLS, testes pgTAP e como rodar o banco localmente                                                      |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md)                         | Vercel, variáveis de ambiente, cabeçalhos de segurança e publicação do banco                                   |
 
