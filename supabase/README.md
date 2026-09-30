@@ -156,6 +156,11 @@ npm run db:push
 
 Senha de todos: `senha123`.
 
+> As colunas de token do `auth.users` (`confirmation_token`, `recovery_token` e
+> companhia) são preenchidas com string **vazia**, não `NULL`. O GoTrue lê todas
+> como `string` e quebra o login com _"converting NULL to string is unsupported"_
+> se forem nulas — e o default da tabela é `NULL`.
+
 | E-mail                             | Papel       | Contexto                        |
 | ---------------------------------- | ----------- | ------------------------------- |
 | `mariana.costa@email.com`          | inquilino   | Rua das Acácias, 450 — Apto 402 |

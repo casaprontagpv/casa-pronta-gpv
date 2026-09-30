@@ -3,20 +3,64 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppProvider } from './AppContext';
 import { useApp } from './useApp';
+import { AuthContext, type AuthContextValue } from '../auth/authContext';
 import { toIsoDate } from '../utils/helpers';
+import type { AuthUser } from '../types';
 
 /**
- * Cobre o ciclo de vida do chamado descrito em CLAUDE.md §5.
+ * Ciclo de vida do chamado (CLAUDE.md §5), com a sessão simulada.
  *
- * Estas asserções são a especificação executável das funções RPC que a Etapa 2
- * vai criar no Postgres — as duas precisam concordar.
+ * A autenticação saiu deste contexto e virou responsabilidade do Supabase Auth,
+ * então aqui injetamos um `AuthContext` de mentira: o objetivo é exercitar as
+ * ações de domínio, não o login. As garantias de autenticação agora vivem no
+ * banco e estão cobertas por supabase/tests/01_isolamento.test.sql.
  */
 
-const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <AppProvider>{children}</AppProvider>
-);
+const inquilina: AuthUser = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Mariana Costa',
+  email: 'mariana.costa@email.com',
+  role: 'inquilino',
+  phone: '(11) 98123-4567',
+  propertyAddress: 'Rua das Acácias, 450 - Apto 402',
+  agencyId: 'imob-alianca',
+  agencyName: 'Aliança Gestão Imobiliária',
+};
 
-const renderApp = () => renderHook(() => useApp(), { wrapper });
+const central: AuthUser = {
+  id: '33333333-3333-3333-3333-333333333333',
+  name: 'Casa Pronta Manutenções (Central)',
+  email: 'admin@casapronta.com.br',
+  role: 'empresa',
+};
+
+const imobiliaria: AuthUser = {
+  id: '22222222-2222-2222-2222-222222222221',
+  name: 'Aliança Gestão Imobiliária',
+  email: 'gestao@aliancaimoveis.com.br',
+  role: 'imobiliaria',
+  agencyId: 'imob-alianca',
+  agencyName: 'Aliança Gestão Imobiliária',
+};
+
+const authFake = (user: AuthUser): AuthContextValue => ({
+  user,
+  loading: false,
+  error: null,
+  signIn: async () => ({ success: true }),
+  signOut: async () => {},
+  requestPasswordReset: async () => ({ success: true }),
+  updatePassword: async () => ({ success: true }),
+});
+
+const renderApp = (user: AuthUser = central) =>
+  renderHook(() => useApp(), {
+    wrapper: ({ children }: { children: React.ReactNode }) => (
+      <AuthContext.Provider value={authFake(user)}>
+        <AppProvider>{children}</AppProvider>
+      </AuthContext.Provider>
+    ),
+  });
 
 const novoChamado = {
   tenantName: 'Mariana Costa',
@@ -36,56 +80,9 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('autenticação de demonstração', () => {
-  it('rejeita senha errada', () => {
-    const { result } = renderApp();
-    let res!: ReturnType<typeof result.current.login>;
-    act(() => {
-      res = result.current.login('mariana.costa@email.com', 'senha-errada');
-    });
-    expect(res.success).toBe(false);
-  });
-
-  it('rejeita as senhas universais que existiam antes', () => {
-    // Regressão: `login()` aceitava '123' e 'admin' para QUALQUER usuário.
-    const { result } = renderApp();
-    let res!: ReturnType<typeof result.current.login>;
-    act(() => {
-      res = result.current.login('admin@casapronta.com.br', '123');
-    });
-    expect(res.success).toBe(false);
-  });
-
-  it('rejeita login por fragmento de nome', () => {
-    // Regressão: `u.name.includes(input)` deixava "cost" entrar como Mariana Costa.
-    const { result } = renderApp();
-    let res!: ReturnType<typeof result.current.login>;
-    act(() => {
-      res = result.current.login('cost', '123');
-    });
-    expect(res.success).toBe(false);
-  });
-
-  it('aceita e-mail com a senha correta e não expõe a senha', () => {
-    const { result } = renderApp();
-    let res!: ReturnType<typeof result.current.login>;
-    act(() => {
-      res = result.current.login('mariana.costa@email.com', '123');
-    });
-    expect(res.success).toBe(true);
-    expect(res.user).toBeDefined();
-    expect(res.user).not.toHaveProperty('demoPassword');
-    expect(JSON.stringify(result.current.currentUser)).not.toContain('demoPassword');
-  });
-});
-
 describe('ciclo de vida do chamado', () => {
   it('percorre o caminho feliz e registra cada etapa na timeline', () => {
-    const { result } = renderApp();
-
-    act(() => {
-      result.current.login('mariana.costa@email.com', '123');
-    });
+    const { result } = renderApp(inquilina);
 
     let ticketId = '';
     act(() => {
@@ -216,10 +213,7 @@ describe('ciclo de vida do chamado', () => {
   });
 
   it('reprovação de orçamento grava o motivo', () => {
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('gestao@aliancaimoveis.com.br', '123');
-    });
+    const { result } = renderApp(imobiliaria);
 
     let ticketId = '';
     act(() => {
@@ -251,10 +245,7 @@ describe('ciclo de vida do chamado', () => {
 
   it('gera protocolos únicos em chamados consecutivos', () => {
     // Regressão: o protocolo derivava de `tickets.length` e repetia após um reset.
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('mariana.costa@email.com', '123');
-    });
+    const { result } = renderApp(inquilina);
 
     const protocolos: string[] = [];
     act(() => {
@@ -270,12 +261,9 @@ describe('ciclo de vida do chamado', () => {
     expect(new Set(protocolos).size).toBe(3);
   });
 
-  it('a autoria da timeline reflete quem está logado', () => {
-    // Regressão: `getAuthorName()` devolvia nomes fixos, ignorando a sessão.
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('admin@casapronta.com.br', 'admin');
-    });
+  it('a autoria da timeline reflete quem está na sessão', () => {
+    // Regressão: `getAuthorName()` devolvia nomes fixos, ignorando quem agia.
+    const { result } = renderApp(central);
 
     let ticketId = '';
     act(() => {
@@ -307,10 +295,7 @@ describe('agendamento', () => {
   };
 
   it('recusa agendamento conflitante e devolve o compromisso existente', () => {
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('admin@casapronta.com.br', 'admin');
-    });
+    const { result } = renderApp(central);
 
     act(() => {
       const ok = result.current.scheduleAppointment({
@@ -333,10 +318,7 @@ describe('agendamento', () => {
   });
 
   it('aceita agendamento encostado no anterior', () => {
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('admin@casapronta.com.br', 'admin');
-    });
+    const { result } = renderApp(central);
 
     act(() => {
       result.current.scheduleAppointment({ ...slotBase, startTime: '09:00', endTime: '11:00' });
@@ -352,10 +334,7 @@ describe('agendamento', () => {
   });
 
   it('recusa janela com término anterior ao início', () => {
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('admin@casapronta.com.br', 'admin');
-    });
+    const { result } = renderApp(central);
     act(() => {
       const res = result.current.scheduleAppointment({
         ...slotBase,
@@ -368,10 +347,7 @@ describe('agendamento', () => {
 
   it('confirmação de presença sincroniza a lista global e a cópia no chamado', () => {
     // Regressão: `updateAppointmentStatus` atualizava só a lista global, e as duas divergiam.
-    const { result } = renderApp();
-    act(() => {
-      result.current.login('admin@casapronta.com.br', 'admin');
-    });
+    const { result } = renderApp(central);
 
     let ticketId = '';
     act(() => {

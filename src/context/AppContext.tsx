@@ -14,7 +14,6 @@ import {
   ServiceCompletion,
   Evaluation,
   AppointmentStatus,
-  AuthUser,
   PropertyType,
   Category,
   PriorityLevel,
@@ -26,8 +25,8 @@ import {
   INITIAL_APPOINTMENTS,
   INITIAL_NOTIFICATIONS,
 } from '../mockData';
-import { PRESET_USERS, DemoUser } from '../mockUsers';
 import { ROLE_LABELS } from '../utils/helpers';
+import { useAuth } from '../auth/useAuth';
 import { createId } from '../utils/id';
 import { filterAppointmentsForUser, filterTicketsForUser } from '../domain/access';
 import { findConflictingAppointment, isValidSlot } from '../domain/scheduling';
@@ -36,68 +35,13 @@ const STORAGE_KEY_TICKETS = 'casapronta_tickets_v1';
 const STORAGE_KEY_TECH = 'casapronta_technicians_v1';
 const STORAGE_KEY_APTS = 'casapronta_appointments_v1';
 const STORAGE_KEY_NOTIFS = 'casapronta_notifications_v1';
-const STORAGE_KEY_ROLE = 'casapronta_role_v1';
-const STORAGE_KEY_USER = 'casapronta_auth_user_v2';
-const STORAGE_KEY_PORTAL_TAB = 'casapronta_portal_tab_v2';
-const STORAGE_KEY_CUSTOM_USERS = 'casapronta_custom_users_v2';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Custom created users saved locally
-  const [customUsers, setCustomUsers] = useState<DemoUser[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_USERS);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved custom users', e);
-      }
-    }
-    return [];
-  });
-
-  const allUsers = useMemo<DemoUser[]>(() => {
-    return [...PRESET_USERS, ...customUsers];
-  }, [customUsers]);
-
-  /** Remove a senha antes de expor o usuário ao resto do app. */
-  const stripPassword = (user: DemoUser): AuthUser => {
-    const { demoPassword: _demoPassword, ...publicUser } = user;
-    return publicUser;
-  };
-
-  // Current logged in user (with property / agency bindings)
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_USER);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved user', e);
-      }
-    }
-    // Default logged in user: Mariana Costa (inquilino demo)
-    return PRESET_USERS[0];
-  });
-
-  // Current active navigation tab: 'inquilino' | 'imobiliaria' | 'empresa' | 'prestador'
-  const [activePortalTab, setActivePortalTabState] = useState<UserRole>(() => {
-    const savedTab = localStorage.getItem(STORAGE_KEY_PORTAL_TAB) as UserRole;
-    if (savedTab) return savedTab;
-    const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-    if (savedUser) {
-      try {
-        const u = JSON.parse(savedUser) as AuthUser;
-        return u.role;
-      } catch (e) {
-        console.error('Failed to parse saved user for portal tab', e);
-      }
-    }
-    return 'inquilino';
-  });
-
-  const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
-    return (localStorage.getItem(STORAGE_KEY_ROLE) as UserRole) || 'inquilino';
-  });
+  // A sessão vem do Supabase Auth. Este contexto não autentica ninguém: ele só
+  // consome o usuário já autenticado para filtrar o que cada papel enxerga.
+  const { user: currentUser } = useAuth();
+  const currentRole: UserRole = currentUser?.role ?? 'inquilino';
 
   const [tickets, setTickets] = useState<MaintenanceTicket[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_TICKETS);
@@ -166,160 +110,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(notifications));
   }, [notifications]);
 
-  const setCurrentRole = (role: UserRole) => {
-    setCurrentRoleState(role);
-    localStorage.setItem(STORAGE_KEY_ROLE, role);
-  };
-
-  const setActivePortalTab = (tab: UserRole) => {
-    setActivePortalTabState(tab);
-    localStorage.setItem(STORAGE_KEY_PORTAL_TAB, tab);
-    setCurrentRoleState(tab);
-    localStorage.setItem(STORAGE_KEY_ROLE, tab);
-  };
-
-  /** Abre a sessão para um usuário já autenticado. */
-  const startSession = (user: DemoUser) => {
-    const publicUser = stripPassword(user);
-    setCurrentUser(publicUser);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(publicUser));
-    setCurrentRoleState(user.role);
-    localStorage.setItem(STORAGE_KEY_ROLE, user.role);
-    setActivePortalTabState(user.role);
-    localStorage.setItem(STORAGE_KEY_PORTAL_TAB, user.role);
-    return publicUser;
-  };
-
-  /**
-   * Localiza um usuário por um identificador exato.
-   *
-   * Aceita e-mail, código do imóvel, CNPJ ou telefone — todos com comparação EXATA.
-   * Não casa por nome nem por fragmento: um `includes()` no nome deixava
-   * qualquer pessoa entrar como outra digitando "cost" ou "silva".
-   */
-  const findUserByIdentifier = (identifier: string): DemoUser | undefined => {
-    const cleanId = identifier.trim().toLowerCase();
-    if (!cleanId) return undefined;
-    const cleanDigits = cleanId.replace(/\D/g, '');
-    const onlyDigits = (value?: string) => value?.replace(/\D/g, '') ?? '';
-
-    return allUsers.find(
-      (u) =>
-        u.email.toLowerCase() === cleanId ||
-        u.id.toLowerCase() === cleanId ||
-        u.propertyCode?.toLowerCase() === cleanId ||
-        (cleanDigits.length > 0 && onlyDigits(u.cnpj) === cleanDigits) ||
-        (cleanDigits.length > 0 && onlyDigits(u.phone) === cleanDigits)
-    );
-  };
-
-  const login = (
-    identifier: string,
-    password?: string
-  ): { success: boolean; user?: AuthUser; error?: string } => {
-    const found = findUserByIdentifier(identifier);
-
-    // Mensagem genérica de propósito: distinguir "usuário não existe" de "senha errada"
-    // entrega uma lista de usuários válidos a quem estiver tentando adivinhar.
-    const invalidCredentials = {
-      success: false,
-      error: 'E-mail/código ou senha inválidos.',
-    };
-
-    if (!found) return invalidCredentials;
-    if ((password ?? '').trim() !== found.demoPassword) return invalidCredentials;
-
-    const publicUser = startSession(found);
-
-    addNotification(
-      `Sessão Iniciada`,
-      `Olá, ${found.name}! Conectado com sucesso como ${ROLE_LABELS[found.role]}.`,
-      [found.role],
-      'success'
-    );
-
-    return { success: true, user: publicUser };
-  };
-
-  const registerUser = (userData: {
-    name: string;
-    email: string;
-    password?: string;
-    role: UserRole;
-    phone?: string;
-    propertyAddress?: string;
-    propertyUnit?: string;
-    propertyCode?: string;
-    agencyName?: string;
-    cnpj?: string;
-  }): { success: boolean; user?: AuthUser; error?: string } => {
-    const cleanEmail = userData.email.trim().toLowerCase();
-    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      return {
-        success: false,
-        error: 'Já existe uma conta cadastrada com este e-mail. Faça login.',
-      };
-    }
-
-    if (!userData.password || userData.password.trim().length === 0) {
-      return { success: false, error: 'Informe uma senha para criar a conta.' };
-    }
-
-    const newUser: DemoUser = {
-      id: createId('user-custom'),
-      name: userData.name.trim(),
-      email: cleanEmail,
-      role: userData.role,
-      demoPassword: userData.password,
-      phone: userData.phone,
-      // Campos de vínculo ficam vazios quando não informados. Inventar um endereço
-      // ou uma imobiliária padrão fazia o novo usuário herdar os chamados de outra pessoa,
-      // porque o isolamento de dados casa justamente por esses campos.
-      propertyAddress: userData.propertyAddress,
-      propertyUnit: userData.propertyUnit,
-      propertyCode: userData.propertyCode,
-      agencyName: userData.agencyName,
-      cnpj: userData.cnpj,
-    };
-
-    const nextCustom = [...customUsers, newUser];
-    setCustomUsers(nextCustom);
-    localStorage.setItem(STORAGE_KEY_CUSTOM_USERS, JSON.stringify(nextCustom));
-
-    const publicUser = startSession(newUser);
-
-    addNotification(
-      'Conta Criada com Sucesso!',
-      `Bem-vindo(a), ${newUser.name}! Seu cadastro foi concluído e você já está autenticado.`,
-      [newUser.role],
-      'success'
-    );
-
-    return { success: true, user: publicUser };
-  };
-
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEY_USER);
-    addNotification(
-      'Sessão Encerrada',
-      'Você saiu do sistema com segurança.',
-      ['inquilino', 'imobiliaria', 'empresa'],
-      'info'
-    );
-  };
-
-  /**
-   * Troca rápida entre os usuários de demonstração, sem senha.
-   * Existe só para a demo — sai junto com PRESET_USERS na Etapa 3.
-   */
-  const switchUser = (userId: string) => {
-    const found = allUsers.find((u) => u.id === userId);
-    if (found) {
-      startSession(found);
-    }
-  };
 
   // Isolamento de dados por papel — a regra vive em src/domain/access.ts (CLAUDE.md §6).
   const userTickets = useMemo(
@@ -999,16 +789,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentRole,
-        setCurrentRole,
         currentUser,
-        allUsers,
-        login,
-        registerUser,
-        logout,
-        switchUser,
-        activePortalTab,
-        setActivePortalTab,
+        currentRole,
         tickets,
         userTickets,
         technicians,

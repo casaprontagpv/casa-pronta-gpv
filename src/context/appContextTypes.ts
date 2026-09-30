@@ -20,30 +20,14 @@ import {
 } from '../types';
 
 export interface AppContextType {
-  currentRole: UserRole;
-  setCurrentRole: (role: UserRole) => void;
+  /**
+   * Usuário autenticado, vindo do AuthProvider. Somente leitura aqui — sessão é
+   * responsabilidade do Supabase Auth, não deste contexto.
+   */
   currentUser: AuthUser | null;
-  allUsers: AuthUser[];
-  login: (
-    identifier: string,
-    password?: string
-  ) => { success: boolean; user?: AuthUser; error?: string };
-  registerUser: (userData: {
-    name: string;
-    email: string;
-    password?: string;
-    role: UserRole;
-    phone?: string;
-    propertyAddress?: string;
-    propertyUnit?: string;
-    propertyCode?: string;
-    agencyName?: string;
-    cnpj?: string;
-  }) => { success: boolean; user?: AuthUser; error?: string };
-  logout: () => void;
-  switchUser: (userId: string) => void;
-  activePortalTab: UserRole;
-  setActivePortalTab: (tab: UserRole) => void;
+  /** Papel do usuário da sessão. Derivado, nunca escolhido. */
+  currentRole: UserRole;
+
   // Data sets
   tickets: MaintenanceTicket[];
   userTickets: MaintenanceTicket[]; // Strictly isolated for current user's property / agency

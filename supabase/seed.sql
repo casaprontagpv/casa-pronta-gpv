@@ -17,29 +17,34 @@
 -- ─── Usuários do Auth ───────────────────────────────────────────────────────
 -- Senha de todos: "senha123". O trigger on_auth_user_created cria o profile.
 
+-- As colunas de token precisam ser string VAZIA, não NULL: o GoTrue lê todas
+-- como `string` e quebra com "converting NULL to string is unsupported" no
+-- primeiro login. O default da tabela é NULL, então é obrigatório listá-las.
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
-  raw_app_meta_data, raw_user_meta_data
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, phone_change, phone_change_token, reauthentication_token
 )
 values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'mariana.costa@email.com',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Mariana Costa","role":"inquilino","phone":"(11) 98123-4567"}'),
+   '{"name":"Mariana Costa","role":"inquilino","phone":"(11) 98123-4567"}', '', '', '', '', '', '', '', ''),
 
   ('11111111-1111-1111-1111-111111111112', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'roberto.nunes@email.com',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Roberto Nunes","role":"inquilino","phone":"(11) 97234-8899"}'),
+   '{"name":"Roberto Nunes","role":"inquilino","phone":"(11) 97234-8899"}', '', '', '', '', '', '', '', ''),
 
   ('11111111-1111-1111-1111-111111111113', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'camila.toledo@email.com',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Camila Toledo","role":"inquilino","phone":"(11) 98999-1122"}'),
+   '{"name":"Camila Toledo","role":"inquilino","phone":"(11) 98999-1122"}', '', '', '', '', '', '', '', ''),
 
   -- Vizinho de andar da Mariana. Existe no seed exatamente para o teste de
   -- isolamento: foi este caso que o filtro por includes() vazava.
@@ -47,37 +52,37 @@ values
    'authenticated', 'authenticated', 'andre.siqueira@email.com',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"André Siqueira","role":"inquilino","phone":"(11) 96543-2211"}'),
+   '{"name":"André Siqueira","role":"inquilino","phone":"(11) 96543-2211"}', '', '', '', '', '', '', '', ''),
 
   ('22222222-2222-2222-2222-222222222221', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'gestao@aliancaimoveis.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Aliança Gestão Imobiliária","role":"imobiliaria","phone":"(11) 3987-6543"}'),
+   '{"name":"Aliança Gestão Imobiliária","role":"imobiliaria","phone":"(11) 3987-6543"}', '', '', '', '', '', '', '', ''),
 
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'contato@solarimoveis.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Solar Negócios Imobiliários","role":"imobiliaria","phone":"(11) 3456-7890"}'),
+   '{"name":"Solar Negócios Imobiliários","role":"imobiliaria","phone":"(11) 3456-7890"}', '', '', '', '', '', '', '', ''),
 
   ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'admin@casapronta.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Casa Pronta Manutenções (Central)","role":"empresa","phone":"(11) 4004-9988"}'),
+   '{"name":"Casa Pronta Manutenções (Central)","role":"empresa","phone":"(11) 4004-9988"}', '', '', '', '', '', '', '', ''),
 
   ('44444444-4444-4444-4444-444444444441', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'carlos.santos@casapronta.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Carlos Santos","role":"prestador","phone":"(11) 98765-4321"}'),
+   '{"name":"Carlos Santos","role":"prestador","phone":"(11) 98765-4321"}', '', '', '', '', '', '', '', ''),
 
   ('44444444-4444-4444-4444-444444444442', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'jose.lima@casapronta.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"José Lima","role":"prestador","phone":"(11) 99123-4567"}'),
+   '{"name":"José Lima","role":"prestador","phone":"(11) 99123-4567"}', '', '', '', '', '', '', '', ''),
 
   -- Outro técnico chamado Carlos. Está aqui de propósito: o protótipo tinha um
   -- fallback literal includes('carlos') que entregava a agenda alheia a ele.
@@ -85,7 +90,7 @@ values
    'authenticated', 'authenticated', 'carlos.eduardo@casapronta.com.br',
    crypt('senha123', gen_salt('bf')), now(), now(), now(),
    '{"provider":"email","providers":["email"]}',
-   '{"name":"Carlos Eduardo","role":"prestador","phone":"(11) 97777-1234"}')
+   '{"name":"Carlos Eduardo","role":"prestador","phone":"(11) 97777-1234"}', '', '', '', '', '', '', '', '')
 on conflict (id) do nothing;
 
 -- Identidades (necessárias para login por e-mail/senha no GoTrue).
