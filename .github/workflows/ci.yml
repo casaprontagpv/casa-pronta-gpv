@@ -59,9 +59,9 @@ jobs:
         run: npm ci
 
       - name: Subir o Supabase local
-        # Perfil APP: além do Postgres, o Auth e a API REST, que as suítes de
+        # Perfil APP: Postgres, Auth, API REST e Storage — tudo que as suítes de
         # integração exercitam. Continua sem Studio, logs e edge runtime.
-        run: npx supabase start -x storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        run: npx supabase start -x imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Preparar variáveis do Supabase local
         run: |

@@ -4,6 +4,8 @@ import { X, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/useApp';
 import { useAcao } from '../hooks/useAcao';
 import { ErroAcao } from './ErroAcao';
+import { enviarFoto } from '../data/photos';
+import { PhotoUploader, descartarPreviews, type FotoSelecionada } from './photos/PhotoUploader';
 
 interface ServiceCompletionModalProps {
   ticket: MaintenanceTicket;
@@ -32,6 +34,9 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
   const [beforePhotos] = useState<string[]>(ticket.photos.slice(0, 1));
   const [afterPhotos] = useState<string[]>([]);
 
+  const [fotosAntes, setFotosAntes] = useState<FotoSelecionada[]>([]);
+  const [fotosDepois, setFotosDepois] = useState<FotoSelecionada[]>([]);
+
   // Antes do early return: hook não pode ser chamado condicionalmente.
   const { salvando, erro, executar } = useAcao();
 
@@ -39,16 +44,20 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await executar(
-      () =>
-        finalizeService(ticket.id, {
-          servicesPerformed,
-          materialsUsed,
-          warrantyMonths: Number(warrantyMonths),
-          observations,
-        }),
-      onClose
-    );
+    await executar(async () => {
+      await finalizeService(ticket.id, {
+        servicesPerformed,
+        materialsUsed,
+        warrantyMonths: Number(warrantyMonths),
+        observations,
+      });
+      for (const f of fotosAntes) await enviarFoto(ticket.id, 'antes', f.arquivo);
+      for (const f of fotosDepois) await enviarFoto(ticket.id, 'depois', f.arquivo);
+      descartarPreviews([...fotosAntes, ...fotosDepois]);
+      setFotosAntes([]);
+      setFotosDepois([]);
+      onClose();
+    });
   };
 
   return (
@@ -172,6 +181,22 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <PhotoUploader
+              fotos={fotosAntes}
+              onChange={setFotosAntes}
+              label="Antes"
+              desabilitado={salvando}
+            />
+            <PhotoUploader
+              fotos={fotosDepois}
+              onChange={setFotosDepois}
+              label="Depois"
+              hint="O par antes/depois é o que o inquilino usa para atestar o serviço."
+              desabilitado={salvando}
             />
           </div>
 

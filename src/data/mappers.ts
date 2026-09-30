@@ -145,6 +145,14 @@ export interface LinhaEventoTimeline {
   created_at: string;
 }
 
+export interface LinhaAnexo {
+  id: string;
+  ticket_id: string;
+  kind: 'chamado' | 'parecer' | 'orcamento' | 'antes' | 'depois';
+  storage_path: string;
+  created_at: string;
+}
+
 export interface LinhaMensagem {
   id: string;
   ticket_id: string;
@@ -179,6 +187,7 @@ export interface LinhaChamado {
   technical_reports: LinhaParecer | null;
   service_completions: LinhaConclusao | null;
   evaluations: LinhaAvaliacao | null;
+  attachments: LinhaAnexo[] | null;
   ticket_timeline?: LinhaEventoTimeline[] | null;
   ticket_messages?: LinhaMensagem[] | null;
 }
@@ -269,7 +278,7 @@ export const paraAgendamento = (
   };
 };
 
-export const paraParecer = (l: LinhaParecer): TechnicalReport => ({
+export const paraParecer = (l: LinhaParecer, fotos: string[] = []): TechnicalReport => ({
   id: l.id,
   ticketId: l.ticket_id,
   technicianId: l.technician_id ?? '',
@@ -283,11 +292,14 @@ export const paraParecer = (l: LinhaParecer): TechnicalReport => ({
   needsQuote: l.needs_quote,
   needsReturn: l.needs_return,
   recommendedPriority: l.recommended_priority,
-  // Fotos vêm de `attachments`, na etapa do Storage.
-  photos: [],
+  photos: fotos,
 });
 
-export const paraConclusao = (l: LinhaConclusao): ServiceCompletion => ({
+export const paraConclusao = (
+  l: LinhaConclusao,
+  antes: string[] = [],
+  depois: string[] = []
+): ServiceCompletion => ({
   id: l.id,
   ticketId: l.ticket_id,
   completionDate: formatarDataHora(l.completed_at),
@@ -295,8 +307,8 @@ export const paraConclusao = (l: LinhaConclusao): ServiceCompletion => ({
   materialsUsed: l.materials_used,
   warrantyMonths: l.warranty_months,
   observations: l.observations,
-  beforePhotos: [],
-  afterPhotos: [],
+  beforePhotos: antes,
+  afterPhotos: depois,
   tenantConfirmed: l.tenant_confirmed,
   tenantConfirmedAt: l.tenant_confirmed_at ? formatarDataHora(l.tenant_confirmed_at) : undefined,
 });
@@ -341,6 +353,12 @@ export const paraMensagem = (l: LinhaMensagem): ChatMessage => ({
 export const paraChamado = (l: LinhaChamado): MaintenanceTicket => {
   const imovel = l.properties;
   const endereco = enderecoCompleto(imovel);
+
+  // `photos` guarda CAMINHOS do Storage, não URLs: o bucket é privado e a URL
+  // assinada é pedida na hora de exibir. Ver PhotoGallery.
+  const anexos = l.attachments ?? [];
+  const caminhosDe = (kind: LinhaAnexo['kind']) =>
+    anexos.filter((a) => a.kind === kind).map((a) => a.storage_path);
   const orcamentoVigente = (l.quotes ?? [])
     .slice()
     .sort((a, b) => b.version - a.version)
@@ -370,7 +388,7 @@ export const paraChamado = (l: LinhaChamado): MaintenanceTicket => {
     environment: l.environment,
     category: l.category,
     description: l.description,
-    photos: [],
+    photos: caminhosDe('chamado'),
     urgency: l.urgency,
     preferredPeriod: l.preferred_period,
     status: l.status,
@@ -382,7 +400,9 @@ export const paraChamado = (l: LinhaChamado): MaintenanceTicket => {
 
     timeline: (l.ticket_timeline ?? []).map(paraEventoTimeline),
     chatMessages: (l.ticket_messages ?? []).map(paraMensagem),
-    technicalReport: l.technical_reports ? paraParecer(l.technical_reports) : undefined,
+    technicalReport: l.technical_reports
+      ? paraParecer(l.technical_reports, caminhosDe('parecer'))
+      : undefined,
     quote: orcamentoVigente ? paraOrcamento(orcamentoVigente) : undefined,
     appointment: agendamento
       ? paraAgendamento(agendamento, {
@@ -396,7 +416,9 @@ export const paraChamado = (l: LinhaChamado): MaintenanceTicket => {
           priority: l.urgency,
         })
       : undefined,
-    completion: l.service_completions ? paraConclusao(l.service_completions) : undefined,
+    completion: l.service_completions
+      ? paraConclusao(l.service_completions, caminhosDe('antes'), caminhosDe('depois'))
+      : undefined,
     evaluation: l.evaluations ? paraAvaliacao(l.evaluations) : undefined,
   };
 };

@@ -19,6 +19,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useApp } from '../context/useApp';
 import { TimelineViewer } from './TimelineViewer';
+import { PhotoGallery } from './photos/PhotoGallery';
 import {
   getStatusConfig,
   getPriorityConfig,
@@ -364,31 +365,12 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 </h4>
                 <p className="text-xs text-slate-800 leading-relaxed mb-4">{ticket.description}</p>
 
-                {ticket.photos.length > 0 && (
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                      Fotos Enviadas pelo Inquilino
-                    </span>
-                    <div className="flex flex-wrap gap-2.5">
-                      {ticket.photos.map((src, idx) => (
-                        <a
-                          key={idx}
-                          href={src}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity"
-                        >
-                          <img
-                            src={src}
-                            alt="Foto do chamado"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                    Fotos enviadas pelo inquilino
+                  </span>
+                  <PhotoGallery caminhos={ticket.photos} vazio="Nenhuma foto no chamado." />
+                </div>
               </div>
 
               {/* Visual Timeline Component */}
@@ -813,34 +795,20 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                     <p className="text-slate-800">{ticket.completion.materialsUsed}</p>
                   </div>
 
-                  {/* Before / After Photos */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <span className="font-bold text-slate-600 block mb-1.5">Foto do Antes</span>
-                      <div className="h-32 rounded-lg overflow-hidden border border-slate-200">
-                        {ticket.completion.beforePhotos[0] && (
-                          <img
-                            src={ticket.completion.beforePhotos[0]}
-                            alt="Antes"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                      </div>
+                      <span className="font-bold text-slate-600 block mb-1.5">Antes</span>
+                      <PhotoGallery
+                        caminhos={ticket.completion.beforePhotos}
+                        vazio="Sem foto do antes."
+                      />
                     </div>
-
                     <div>
-                      <span className="font-bold text-slate-600 block mb-1.5">Foto do Depois</span>
-                      <div className="h-32 rounded-lg overflow-hidden border border-slate-200">
-                        {ticket.completion.afterPhotos[0] && (
-                          <img
-                            src={ticket.completion.afterPhotos[0]}
-                            alt="Depois"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                      </div>
+                      <span className="font-bold text-slate-600 block mb-1.5">Depois</span>
+                      <PhotoGallery
+                        caminhos={ticket.completion.afterPhotos}
+                        vazio="Sem foto do depois."
+                      />
                     </div>
                   </div>
                 </div>

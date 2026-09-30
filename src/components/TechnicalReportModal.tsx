@@ -4,6 +4,8 @@ import { X, FileText, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/useApp';
 import { useAcao } from '../hooks/useAcao';
 import { ErroAcao } from './ErroAcao';
+import { enviarFoto } from '../data/photos';
+import { PhotoUploader, descartarPreviews, type FotoSelecionada } from './photos/PhotoUploader';
 
 interface TechnicalReportModalProps {
   ticket: MaintenanceTicket;
@@ -41,6 +43,8 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
     ticket.technicalReport?.recommendedPriority || ticket.urgency || 'alta'
   );
 
+  const [fotos, setFotos] = useState<FotoSelecionada[]>([]);
+
   // Antes do early return: hook não pode ser chamado condicionalmente.
   const { salvando, erro, executar } = useAcao();
 
@@ -50,19 +54,23 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
     e.preventDefault();
     // Técnico e nome vêm do chamado no servidor: o parecer é de quem está
     // designado, não de quem a tela escolheu.
-    await executar(
-      () =>
-        saveTechnicalReport(ticket.id, {
-          situationFound,
-          possibleCause,
-          recommendedSolution,
-          requiredMaterials,
-          needsQuote,
-          needsReturn,
-          recommendedPriority,
-        }),
-      onClose
-    );
+    await executar(async () => {
+      await saveTechnicalReport(ticket.id, {
+        situationFound,
+        possibleCause,
+        recommendedSolution,
+        requiredMaterials,
+        needsQuote,
+        needsReturn,
+        recommendedPriority,
+      });
+      for (const f of fotos) {
+        await enviarFoto(ticket.id, 'parecer', f.arquivo);
+      }
+      descartarPreviews(fotos);
+      setFotos([]);
+      onClose();
+    });
   };
 
   return (
@@ -249,6 +257,14 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
               </div>
             </div>
           </div>
+
+          <PhotoUploader
+            fotos={fotos}
+            onChange={setFotos}
+            label="Fotos da vistoria"
+            hint="Registre o que encontrou: é o que sustenta o parecer e o orçamento."
+            desabilitado={salvando}
+          />
 
           <ErroAcao mensagem={erro} />
 

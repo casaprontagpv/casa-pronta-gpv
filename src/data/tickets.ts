@@ -64,7 +64,8 @@ const CAMPOS_LISTA = `
   appointments(id, ticket_id, technician_id, starts_at, ends_at, service_type, notes, status, tenant_confirmed),
   technical_reports(*),
   service_completions(*),
-  evaluations(*)
+  evaluations(*),
+  attachments(id, ticket_id, kind, storage_path, created_at)
 `;
 
 const CAMPOS_DETALHE = `

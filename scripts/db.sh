@@ -24,10 +24,10 @@ PROJECT="casa-pronta"
 # É o que basta enquanto o front-end ainda lê do localStorage.
 EXCLUI_MINIMO="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 
-# APP — quando o front-end passar a falar com o banco (Etapas 3 e 4).
+# APP — tudo que o front-end consome.
 # Sobe: postgres, kong (gateway :54321), gotrue (login), postgrest (API),
-# realtime (timeline/chat ao vivo), mailpit (ver e-mails de convite). 6 containers.
-EXCLUI_APP="storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+# realtime (timeline/chat ao vivo), storage-api (fotos) e mailpit (e-mails).
+EXCLUI_APP="imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 
 # COMPLETO — tudo que usamos, incluindo o Studio para inspecionar dados na mão.
 # Continua sem edge-runtime, logflare e vector: esses não entram em nenhum perfil.

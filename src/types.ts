@@ -174,6 +174,10 @@ export interface MaintenanceTicket {
   environment: string;
   category: Category;
   description: string;
+  /**
+   * CAMINHOS no bucket privado, não URLs. O bucket não tem link permanente:
+   * a URL assinada é pedida na exibição (ver components/photos/PhotoGallery).
+   */
   photos: string[];
   urgency: PriorityLevel;
   preferredPeriod: PreferredPeriod;

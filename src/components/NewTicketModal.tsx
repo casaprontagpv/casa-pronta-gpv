@@ -4,6 +4,8 @@ import { useApp } from '../context/useApp';
 import { useAcao } from '../hooks/useAcao';
 import { ErroAcao } from './ErroAcao';
 import { listarImoveisDisponiveis } from '../data/tickets';
+import { enviarFoto } from '../data/photos';
+import { PhotoUploader, descartarPreviews, type FotoSelecionada } from './photos/PhotoUploader';
 import { getCategoryLabel } from '../utils/helpers';
 import type { Category, PreferredPeriod, PriorityLevel } from '../types';
 
@@ -69,6 +71,7 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, onClose 
   const [urgency, setUrgency] = useState<PriorityLevel>('normal');
   const [preferredPeriod, setPreferredPeriod] = useState<PreferredPeriod>('manha');
   const [validacao, setValidacao] = useState<string | null>(null);
+  const [fotos, setFotos] = useState<FotoSelecionada[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -91,6 +94,8 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, onClose 
     setDescription('');
     setUrgency('normal');
     setValidacao(null);
+    descartarPreviews(fotos);
+    setFotos([]);
   };
 
   const enviar = async (e: React.FormEvent) => {
@@ -120,6 +125,20 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, onClose 
           urgency,
           preferredPeriod,
         });
+
+        // As fotos só podem subir DEPOIS: o caminho no bucket leva o id do
+        // chamado, e é dele que a política do Storage decide quem pode ler.
+        // Se alguma falhar, o chamado continua válido — perder a foto é melhor
+        // do que perder o chamado.
+        for (const f of fotos) {
+          try {
+            await enviarFoto(id, 'chamado', f.arquivo);
+          } catch {
+            // Silenciado de propósito: o chamado já foi aberto e o usuário pode
+            // anexar depois. Falhar aqui sugeriria que nada foi registrado.
+          }
+        }
+
         limpar();
         onClose();
         // Abre o chamado recém-criado: o protocolo aparece no detalhe.
@@ -244,6 +263,14 @@ export const NewTicketModal: React.FC<NewTicketModalProps> = ({ isOpen, onClose 
               Quanto mais detalhe, menos idas e vindas até o reparo.
             </p>
           </div>
+
+          <PhotoUploader
+            fotos={fotos}
+            onChange={setFotos}
+            label="Fotos do problema"
+            hint="Uma foto costuma evitar uma visita só para diagnosticar."
+            desabilitado={salvando}
+          />
 
           <div>
             <span className="block text-xs font-bold text-slate-700 mb-1.5">Urgência</span>
