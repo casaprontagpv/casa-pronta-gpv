@@ -271,11 +271,15 @@ O plano original deixava o deploy para o fim. Dois motivos para mudar:
 **Nada vai ao ar antes da autenticação real existir.** O Marco 0 configura a Vercel mas
 não publica nada acessível — a primeira URL no ar já vem com login de verdade.
 
-#### Marco 0 — Trilho de produção · ~meio dia
+#### ✅ Marco 0 — Trilho de produção — CONCLUÍDO em 2026-09-30
 
-- `supabase link` + `db push` no projeto `sa-east-1`.
-- Projeto na Vercel, variáveis de ambiente, `vercel.json` (rewrite de SPA, headers de segurança).
-- Preview por branch **sem deploy de produção**. Sem URL pública enquanto o login for falso.
+- ✅ `supabase link` + `db push` no projeto `cwigtsefbiajqfxqiqaa` (`sa-east-1`, São Paulo).
+  As 9 migrations aplicadas; `seed.sql` deliberadamente fora.
+  Verificado no remoto: **17 de 17 tabelas com RLS ativa**, 38 políticas,
+  a constraint `EXCLUDE` da agenda e o trigger da máquina de estados. `db diff` limpo.
+- ✅ `vercel.json` — rewrite de SPA, CSP, HSTS e política de cache.
+- ⏳ Projeto na Vercel e variáveis de ambiente: a fazer, junto com a autenticação.
+- Sem deploy de produção enquanto o login for de demonstração.
 
 #### Marco 1 — Primeiro release utilizável · ~8–10 dias
 
