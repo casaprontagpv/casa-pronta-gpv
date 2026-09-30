@@ -36,7 +36,8 @@ npm run dev          # http://localhost:3000
 
 ## Variáveis de ambiente
 
-Nenhuma é obrigatória no escopo atual. Ver [`.env.example`](.env.example).
+Ver [`.env.example`](.env.example). Nenhuma é obrigatória enquanto o app lê do
+`localStorage`; as do Supabase passam a ser a partir da autenticação.
 
 ## Documentação
 
@@ -47,6 +48,7 @@ Nenhuma é obrigatória no escopo atual. Ver [`.env.example`](.env.example).
 | [`docs/LACUNAS-FUNCIONAIS.md`](docs/LACUNAS-FUNCIONAIS.md) | O que o sistema **não** faz, por decisão                                                                       |
 | [`docs/GUIA-GOOGLE-CLOUD.md`](docs/GUIA-GOOGLE-CLOUD.md)   | Limpeza do projeto Google herdado do AI Studio                                                                 |
 | [`supabase/README.md`](supabase/README.md)                 | Schema, RLS, testes pgTAP e como rodar o banco localmente                                                      |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md)                         | Vercel, variáveis de ambiente, cabeçalhos de segurança e publicação do banco                                   |
 
 ## Stack
 
