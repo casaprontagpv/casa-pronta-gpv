@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Bell,
-  CheckCheck,
-  KeyRound,
-  LogOut,
-  PlusCircle,
-  RotateCcw,
-  Settings,
-  Wrench,
-} from 'lucide-react';
+import { Bell, CheckCheck, KeyRound, LogOut, PlusCircle, Settings, Wrench } from 'lucide-react';
 import { useApp } from '../context/useApp';
 import { useAuth } from '../auth/useAuth';
 import { ROLE_LABELS } from '../utils/helpers';
@@ -34,13 +25,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
     notifications,
     markNotificationAsRead,
     markAllNotificationsAsRead,
-    resetDemoData,
     setSelectedTicketId,
   } = useApp();
   const { signOut } = useAuth();
 
   const [showNotifMenu, setShowNotifMenu] = useState(false);
-  const [confirmingReset, setConfirmingReset] = useState(false);
 
   // O protótipo tinha um seletor de portal no cabeçalho. Ele sumiu: o portal é
   // derivado do papel da conta, e trocar de perfil agora exige outra sessão.
@@ -91,37 +80,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
             <LogOut className="w-3 h-3" />
             <span>Sair</span>
           </button>
-
-          {/* Utilitário de demonstração: some quando os dados vierem do banco. */}
-          {confirmingReset ? (
-            <span className="flex items-center gap-1.5 text-[11px]">
-              <span className="text-amber-300 font-semibold">Restaurar dados de demonstração?</span>
-              <button
-                onClick={() => {
-                  resetDemoData();
-                  setConfirmingReset(false);
-                }}
-                className="px-2 py-0.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white font-bold transition-colors cursor-pointer"
-              >
-                Sim
-              </button>
-              <button
-                onClick={() => setConfirmingReset(false)}
-                className="px-2 py-0.5 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold transition-colors cursor-pointer"
-              >
-                Não
-              </button>
-            </span>
-          ) : (
-            <button
-              onClick={() => setConfirmingReset(true)}
-              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer"
-              title="Resetar os dados de demonstração"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span className="hidden sm:inline">Resetar Dados</span>
-            </button>
-          )}
         </div>
       </div>
 

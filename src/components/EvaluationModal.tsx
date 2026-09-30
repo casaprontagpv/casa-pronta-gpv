@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { MaintenanceTicket } from '../types';
 import { X, Star, ThumbsUp } from 'lucide-react';
 import { useApp } from '../context/useApp';
+import { useAcao } from '../hooks/useAcao';
+import { ErroAcao } from './ErroAcao';
 
 interface EvaluationModalProps {
   ticket: MaintenanceTicket;
@@ -21,19 +23,17 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({ ticket, isOpen
     'Excelente atendimento! Problema resolvido com agilidade e cordialidade.'
   );
 
+  // Antes do early return: hook não pode ser chamado condicionalmente.
+  const { salvando, erro, executar } = useAcao();
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    submitEvaluation(ticket.id, {
-      ticketId: ticket.id,
-      rating,
-      solved,
-      satisfactory,
-      punctual,
-      comments,
-    });
-    onClose();
+    await executar(
+      () => submitEvaluation(ticket.id, { rating, solved, satisfactory, punctual, comments }),
+      onClose
+    );
   };
 
   return (
@@ -182,6 +182,8 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({ ticket, isOpen
             />
           </div>
 
+          <ErroAcao mensagem={erro} />
+
           <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
@@ -192,10 +194,11 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({ ticket, isOpen
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-sm shadow-amber-200 cursor-pointer flex items-center gap-1.5"
+              disabled={salvando}
+              className="disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-sm shadow-amber-200 cursor-pointer flex items-center gap-1.5"
             >
               <ThumbsUp className="w-4 h-4" />
-              <span>Enviar Avaliação</span>
+              <span>{salvando ? 'ENVIANDO…' : 'Enviar Avaliação'}</span>
             </button>
           </div>
         </form>

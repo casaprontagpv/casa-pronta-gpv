@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildAuthUser, composePropertyAddress, type ProfileRow } from './sessionUser';
-import { filterTicketsForUser } from '../domain/access';
-import type { MaintenanceTicket } from '../types';
 
 /**
- * O mapeamento perfil → vínculos alimenta o filtro de isolamento. Errar aqui
- * significa um usuário enxergando o imóvel de outra pessoa, então os testes
- * fecham o circuito: montam o usuário e conferem o que ele passa a enxergar.
+ * Mapeamento perfil → vínculos.
+ *
+ * O isolamento em si passou a ser garantido pela RLS, e está coberto em
+ * supabase/tests/01_isolamento.test.sql. O que se testa aqui é a tradução
+ * entre o modelo do banco e o formato que a interface usa.
  */
 
 const perfil = (over: Partial<ProfileRow> = {}): ProfileRow => ({
@@ -57,12 +57,11 @@ describe('buildAuthUser — inquilino', () => {
     expect(comImovel.agencyName).toBe('Aliança Gestão Imobiliária');
   });
 
-  it('sem imóvel vinculado, não enxerga chamado nenhum', () => {
+  it('sem imóvel vinculado, o endereço fica indefinido', () => {
+    // A consequência — não enxergar chamado nenhum — é garantida pela RLS.
     const semImovel = buildAuthUser(perfil());
     expect(semImovel.propertyAddress).toBeUndefined();
-
-    const chamado = { address: 'Rua das Acácias, 450 - Apto 402' } as MaintenanceTicket;
-    expect(filterTicketsForUser([chamado], semImovel)).toEqual([]);
+    expect(semImovel.propertyCode).toBeUndefined();
   });
 });
 
@@ -87,52 +86,15 @@ describe('buildAuthUser — demais papéis', () => {
     expect(user.agencyId).toBeUndefined();
   });
 
-  it('prestador sem técnico vinculado não enxerga chamado nenhum', () => {
+  it('prestador sem técnico vinculado fica sem technicianId', () => {
     const user = buildAuthUser(perfil({ role: 'prestador' }), { technicianId: null });
-    const chamado = { assignedTechnicianId: 'c1' } as MaintenanceTicket;
-    expect(filterTicketsForUser([chamado], user)).toEqual([]);
+    expect(user.technicianId).toBeUndefined();
   });
 
-  it('empresa não tem vínculo — enxerga tudo', () => {
+  it('empresa não tem vínculo nenhum', () => {
     const user = buildAuthUser(perfil({ role: 'empresa', name: 'Central' }));
     expect(user.agencyId).toBeUndefined();
     expect(user.propertyAddress).toBeUndefined();
     expect(user.technicianId).toBeUndefined();
-
-    const chamados = [
-      { assignedAgencyId: 'a1' } as MaintenanceTicket,
-      { assignedAgencyId: 'a2' } as MaintenanceTicket,
-    ];
-    expect(filterTicketsForUser(chamados, user)).toHaveLength(2);
-  });
-});
-
-describe('isolamento a partir do usuário montado', () => {
-  const mariana = buildAuthUser(perfil(), {
-    property: {
-      id: 'b1',
-      code: 'IMOV-402',
-      address: 'Rua das Acácias, 450',
-      unit: 'Apto 402',
-      agencyId: 'a1',
-      agencyName: 'Aliança',
-    },
-  });
-
-  const doVizinho = {
-    id: 't-vizinho',
-    address: 'Rua das Acácias, 450 - Apto 201',
-    tenantEmail: 'andre.siqueira@email.com',
-  } as MaintenanceTicket;
-
-  const dela = {
-    id: 't-dela',
-    address: 'Rua das Acácias, 450 - Apto 402',
-    tenantEmail: 'mariana.costa@email.com',
-  } as MaintenanceTicket;
-
-  it('enxerga o próprio chamado e NÃO o do vizinho de andar', () => {
-    const visiveis = filterTicketsForUser([dela, doVizinho], mariana);
-    expect(visiveis.map((t) => t.id)).toEqual(['t-dela']);
   });
 });

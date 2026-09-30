@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { MaintenanceTicket, PriorityLevel } from '../types';
 import { X, FileText, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/useApp';
+import { useAcao } from '../hooks/useAcao';
+import { ErroAcao } from './ErroAcao';
 
 interface TechnicalReportModalProps {
   ticket: MaintenanceTicket;
@@ -14,14 +16,11 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { saveTechnicalReport, technicians } = useApp();
+  const { saveTechnicalReport } = useApp();
 
   // Campos do laudo começam VAZIOS. Vinham pré-preenchidos com um diagnóstico
   // hidráulico fictício — o técnico podia salvar um parecer que nunca escreveu,
   // e esse texto vira registro permanente na timeline auditável.
-  const [technicianId, setTechnicianId] = useState(
-    ticket.assignedTechnicianId || technicians[0]?.id || ''
-  );
   const [situationFound, setSituationFound] = useState(
     ticket.technicalReport?.situationFound ?? ''
   );
@@ -41,29 +40,29 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
   const [recommendedPriority, setRecommendedPriority] = useState<PriorityLevel>(
     ticket.technicalReport?.recommendedPriority || ticket.urgency || 'alta'
   );
-  const [photos] = useState<string[]>(ticket.technicalReport?.photos ?? []);
+
+  // Antes do early return: hook não pode ser chamado condicionalmente.
+  const { salvando, erro, executar } = useAcao();
 
   if (!isOpen) return null;
 
-  const currentTech = technicians.find((t) => t.id === technicianId);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveTechnicalReport(ticket.id, {
-      ticketId: ticket.id,
-      technicianId: currentTech?.id ?? '',
-      technicianName: currentTech?.name ?? '',
-      tenantProblem: ticket.description,
-      situationFound,
-      possibleCause,
-      recommendedSolution,
-      requiredMaterials,
-      needsQuote,
-      needsReturn,
-      recommendedPriority,
-      photos,
-    });
-    onClose();
+    // Técnico e nome vêm do chamado no servidor: o parecer é de quem está
+    // designado, não de quem a tela escolheu.
+    await executar(
+      () =>
+        saveTechnicalReport(ticket.id, {
+          situationFound,
+          possibleCause,
+          recommendedSolution,
+          requiredMaterials,
+          needsQuote,
+          needsReturn,
+          recommendedPriority,
+        }),
+      onClose
+    );
   };
 
   return (
@@ -101,23 +100,16 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
             </p>
           </div>
 
-          {/* Technician selection */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Exibição, não escolha: o parecer é assinado por quem está
+                designado ao chamado, e quem resolve isso é o servidor. */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Técnico Vistoriador *
+                Técnico Vistoriador
               </label>
-              <select
-                value={technicianId}
-                onChange={(e) => setTechnicianId(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden font-medium"
-              >
-                {technicians.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.team})
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-lg font-semibold text-slate-700">
+                {ticket.assignedTechnicianName ?? 'Nenhum técnico designado'}
+              </div>
             </div>
 
             <div>
@@ -258,6 +250,8 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
             </div>
           </div>
 
+          <ErroAcao mensagem={erro} />
+
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
             <button
               type="button"
@@ -268,10 +262,11 @@ export const TechnicalReportModal: React.FC<TechnicalReportModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm shadow-indigo-200 cursor-pointer flex items-center gap-1.5"
+              disabled={salvando}
+              className="disabled:opacity-60 disabled:cursor-not-allowed px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm shadow-indigo-200 cursor-pointer flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Salvar e Emitir Parecer</span>
+              <span>{salvando ? 'SALVANDO…' : 'Salvar e Emitir Parecer'}</span>
             </button>
           </div>
         </form>

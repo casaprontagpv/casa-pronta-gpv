@@ -35,8 +35,10 @@ jobs:
       - name: Formatação
         run: npm run format:check
 
-      - name: Testes
-        run: npm run test
+      - name: Testes (unidade)
+        # Sem banco neste job: as suítes de integração ficam de fora e rodam no
+        # job `database`, onde o Supabase está no ar.
+        run: npm run test -- --exclude '**/*.integration.test.ts'
 
       - name: Build
         run: npm run build
@@ -57,9 +59,27 @@ jobs:
         run: npm ci
 
       - name: Subir o Supabase local
-        # Perfil mínimo: só o Postgres. O CI não precisa de Studio, realtime nem
-        # gateway — economiza vários GB de pull a cada execução.
-        run: npx supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        # Perfil APP: além do Postgres, o Auth e a API REST, que as suítes de
+        # integração exercitam. Continua sem Studio, logs e edge runtime.
+        run: npx supabase start -x storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Preparar variáveis do Supabase local
+        run: |
+          npx supabase status -o env \
+            | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
+                  -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
+                  -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
+                  -e 's/"//g' \
+            | grep -E '^(VITE_SUPABASE_URL|VITE_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY)=' \
+            >> "$GITHUB_ENV"
+
+      - name: Testes de integração
+        # Ciclo de vida do chamado e autorização do endpoint administrativo,
+        # contra o banco de verdade. Com CI=true a suíte FALHA se o banco não
+        # responder, em vez de se pular em silêncio.
+        env:
+          CI: 'true'
+        run: npm run test -- --run '**/*.integration.test.ts'
 
       - name: Testes de banco (pgTAP)
         # Isolamento por papel, máquina de estados e conflito de agenda.

@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { MaintenanceTicket } from '../types';
 import { X, Calendar, CheckCircle, ShieldAlert } from 'lucide-react';
 import { useApp } from '../context/useApp';
+import { useAcao } from '../hooks/useAcao';
+import { ErroAcao } from './ErroAcao';
 import { toIsoDate } from '../utils/helpers';
 import { appointmentsForTechnicianOnDate, findConflictingAppointment } from '../domain/scheduling';
 
@@ -39,14 +41,18 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     ticket ? `Execução do Reparo - ${ticket.environment} (${ticket.category})` : ''
   );
   const [notes, setNotes] = useState('');
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [validacao, setValidacao] = useState<string | null>(null);
+
+  // Antes do early return: hook não pode ser chamado condicionalmente.
+  const { salvando, erro, executar } = useAcao();
 
   if (!isOpen) return null;
 
   const currentTech = technicians.find((t) => t.id === technicianId);
 
-  // Agenda do técnico no dia e checagem de conflito em tempo real.
-  // A regra vem de src/domain/scheduling.ts — a mesma que o AppContext aplica ao salvar.
+  // Aviso em tempo real, enquanto o operador escolhe horário. É conveniência de
+  // interface: a garantia de verdade é a constraint EXCLUDE do banco, que recusa
+  // a gravação mesmo se dois operadores agendarem no mesmo instante.
   const techDaySchedule = appointmentsForTechnicianOnDate(appointments, technicianId, date);
 
   const conflictingApt = findConflictingAppointment(appointments, {
@@ -59,44 +65,34 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidacao(null);
 
     if (!currentTech) {
-      setConflictWarning('Selecione o técnico responsável pelo atendimento.');
+      setValidacao('Selecione o técnico responsável pelo atendimento.');
       return;
     }
 
     if (startTime >= endTime) {
-      setConflictWarning('O horário de término deve ser posterior ao horário de início.');
+      setValidacao('O horário de término deve ser posterior ao horário de início.');
       return;
     }
 
-    const result = scheduleAppointment({
-      ticketId: ticket?.id,
-      protocol: ticket?.protocol,
-      clientName,
-      clientPhone,
-      address,
-      agencyName: ticket?.assignedAgencyName ?? '',
-      serviceType,
-      description: ticket?.description || serviceType,
-      technicianId: currentTech.id,
-      technicianName: currentTech.name,
-      teamName: currentTech.team,
-      date,
-      startTime,
-      endTime,
-      priority: ticket?.urgency || 'normal',
-      notes,
-    });
-
-    if (!result.success) {
-      setConflictWarning(
-        `⚠️ Conflito Detectado: O técnico ${currentTech.name} já possui outro compromisso (${result.conflict?.serviceType}) agendado das ${result.conflict?.startTime} às ${result.conflict?.endTime} neste mesmo dia.`
-      );
-      return;
-    }
-
-    onClose();
+    // Cliente, endereço e imobiliária não são enviados: vêm do chamado, no
+    // servidor. Mandá-los daqui permitiria agendar num endereço que não é o do
+    // chamado — era o que o protótipo fazia.
+    await executar(
+      () =>
+        scheduleAppointment({
+          technicianId: currentTech.id,
+          date,
+          startTime,
+          endTime,
+          ticketId: ticket?.id,
+          serviceType,
+          notes,
+        }),
+      onClose
+    );
   };
 
   return (
@@ -146,11 +142,16 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </div>
           )}
 
-          {conflictWarning && !hasConflict && (
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900">
-              {conflictWarning}
+          {validacao && !hasConflict && (
+            <div
+              role="alert"
+              className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900"
+            >
+              {validacao}
             </div>
           )}
+
+          <ErroAcao mensagem={erro} />
 
           {/* Technician Selector with Specialties & Status */}
           <div>
@@ -322,9 +323,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={hasConflict}
+              disabled={hasConflict || salvando}
               className={`px-5 py-2 text-xs font-bold text-white rounded-lg shadow-sm flex items-center gap-1.5 transition-all ${
-                hasConflict
+                hasConflict || salvando
                   ? 'bg-slate-400 cursor-not-allowed'
                   : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer shadow-indigo-200'
               }`}

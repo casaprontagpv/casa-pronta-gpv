@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { prepararIntegracao } from '../../src/test/integracao';
 
 /**
  * Autorização do endpoint administrativo, contra o Supabase local.
@@ -9,8 +10,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
  * ignora a RLS — se ele aceitar quem não é a central, todo o isolamento entre
  * imobiliárias deixa de valer com um único POST.
  *
- * Exige `npm run db:start:app`. Sem o banco no ar, a suíte é PULADA em vez de
- * falhar, para não quebrar quem só mexe no front-end.
+ * Exige `npm run db:start:app`. Sem o banco no ar a suíte avisa e se pula
+ * localmente; no CI, FALHA — um pulo silencioso reportaria "passou" sem ter
+ * verificado a autorização.
  */
 
 const carregarEnvLocal = () => {
@@ -25,12 +27,8 @@ const carregarEnvLocal = () => {
   }
 };
 
-carregarEnvLocal();
-
-const URL_BASE = process.env.VITE_SUPABASE_URL ?? '';
-const ANON = process.env.VITE_SUPABASE_ANON_KEY ?? '';
-
-const ehLocal = URL_BASE.includes('127.0.0.1') || URL_BASE.includes('localhost');
+let URL_BASE = '';
+let ANON = '';
 let bancoNoAr = false;
 
 const token = async (email: string, senha = 'senha123'): Promise<string> => {
@@ -61,13 +59,11 @@ const pedirCriacao = async (autorizacao: string | null, corpo: unknown): Promise
 };
 
 beforeAll(async () => {
-  if (!ehLocal || !ANON) return;
-  try {
-    const r = await fetch(`${URL_BASE}/auth/v1/health`);
-    bancoNoAr = r.ok;
-  } catch {
-    bancoNoAr = false;
-  }
+  const amb = await prepararIntegracao(carregarEnvLocal);
+  URL_BASE = amb.url;
+  ANON = amb.anonKey;
+  bancoNoAr = amb.disponivel;
+
   // A service_role local é fixa e conhecida; em produção vem da Vercel.
   if (bancoNoAr && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const { execSync } = await import('node:child_process');
@@ -77,7 +73,7 @@ beforeAll(async () => {
   }
 });
 
-describe.runIf(ehLocal)('autorização do endpoint administrativo', () => {
+describe('autorização do endpoint administrativo', () => {
   const novo = () => ({
     name: 'Teste Automatizado',
     email: `teste-${crypto.randomUUID()}@exemplo.com`,

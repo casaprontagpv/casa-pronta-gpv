@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { MaintenanceTicket } from '../types';
 import { X, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useApp } from '../context/useApp';
+import { useAcao } from '../hooks/useAcao';
+import { ErroAcao } from './ErroAcao';
 import { formatCurrency } from '../utils/helpers';
 
 interface QuoteModalProps {
@@ -41,43 +43,49 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
   const [showRejectField, setShowRejectField] = useState(false);
   const [rejectionError, setRejectionError] = useState<string | null>(null);
 
+  // Antes do early return: hook não pode ser chamado condicionalmente.
+  const { salvando, erro, executar } = useAcao();
+
   if (!isOpen) return null;
 
   const totalCost = Number(materialsCost || 0) + Number(laborCost || 0);
+  const existingQuote = ticket.quote;
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    submitQuote(ticket.id, {
-      ticketId: ticket.id,
-      serviceDescription,
-      materialsSummary,
-      laborSummary,
-      materialsCost: Number(materialsCost),
-      laborCost: Number(laborCost),
-      totalCost,
-      executionDeadlineDays: Number(executionDeadlineDays),
-      notes,
-    });
-    onClose();
+    // `totalCost` não é enviado: é coluna gerada no banco (materiais + mão de obra).
+    await executar(
+      () =>
+        submitQuote(ticket.id, {
+          serviceDescription,
+          materialsSummary,
+          laborSummary,
+          materialsCost: Number(materialsCost),
+          laborCost: Number(laborCost),
+          executionDeadlineDays: Number(executionDeadlineDays),
+          notes,
+        }),
+      onClose
+    );
   };
 
-  const handleApprove = () => {
-    reviewQuote(ticket.id, 'aprovar');
-    onClose();
+  // A decisão é sobre uma VERSÃO do orçamento, não sobre o chamado: agora há
+  // histórico, e aprovar precisa dizer qual delas.
+  const handleApprove = async () => {
+    if (!existingQuote) return;
+    await executar(() => reviewQuote(existingQuote.id, true), onClose);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     // Motivo obrigatório: é ele que justifica a recusa na timeline auditável (CLAUDE.md §8).
     if (!rejectionReason.trim()) {
       setRejectionError('Informe a justificativa da reprovação.');
       return;
     }
     setRejectionError(null);
-    reviewQuote(ticket.id, 'reprovar', rejectionReason);
-    onClose();
+    if (!existingQuote) return;
+    await executar(() => reviewQuote(existingQuote.id, false, rejectionReason), onClose);
   };
-
-  const existingQuote = ticket.quote;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -234,9 +242,10 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
                       <button
                         type="button"
                         onClick={handleReject}
-                        className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer"
+                        disabled={salvando}
+                        className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-lg cursor-pointer"
                       >
-                        Confirmar Reprovação
+                        {salvando ? 'ENVIANDO…' : 'Confirmar Reprovação'}
                       </button>
                     </div>
                   </div>
@@ -254,10 +263,11 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
                     <button
                       type="button"
                       onClick={handleApprove}
-                      className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      disabled={salvando}
+                      className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-emerald-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <CheckCircle className="w-4 h-4" />
-                      <span>APROVAR ORÇAMENTO</span>
+                      <span>{salvando ? 'ENVIANDO…' : 'APROVAR ORÇAMENTO'}</span>
                     </button>
                   </div>
                 )}
@@ -372,6 +382,8 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
               />
             </div>
 
+            <ErroAcao mensagem={erro} />
+
             <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
               <button
                 type="button"
@@ -382,10 +394,11 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-1.5"
+                disabled={salvando}
+                className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>Enviar Orçamento para Imobiliária</span>
+                <span>{salvando ? 'ENVIANDO…' : 'Enviar Orçamento para Imobiliária'}</span>
               </button>
             </div>
           </form>

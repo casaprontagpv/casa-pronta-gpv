@@ -5,7 +5,7 @@ import type { Tables } from '../lib/supabase';
  * Monta o `AuthUser` do app a partir do perfil e dos vínculos do banco.
  *
  * Separado do React e da rede de propósito: é a tradução entre o modelo do
- * Postgres (chaves estrangeiras) e o formato que `src/domain/access.ts` espera.
+ * Postgres (chaves estrangeiras) e o formato que os componentes esperam.
  * Errar aqui significa um usuário enxergando o imóvel de outra pessoa, então
  * o mapeamento tem teste próprio.
  */

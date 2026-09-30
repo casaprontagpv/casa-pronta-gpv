@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { MaintenanceTicket } from '../types';
 import { X, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/useApp';
+import { useAcao } from '../hooks/useAcao';
+import { ErroAcao } from './ErroAcao';
 
 interface ServiceCompletionModalProps {
   ticket: MaintenanceTicket;
@@ -30,21 +32,23 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
   const [beforePhotos] = useState<string[]>(ticket.photos.slice(0, 1));
   const [afterPhotos] = useState<string[]>([]);
 
+  // Antes do early return: hook não pode ser chamado condicionalmente.
+  const { salvando, erro, executar } = useAcao();
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    finalizeService(ticket.id, {
-      ticketId: ticket.id,
-      servicesPerformed,
-      materialsUsed,
-      warrantyMonths: Number(warrantyMonths),
-      observations,
-      beforePhotos,
-      afterPhotos,
-      tenantConfirmed: false,
-    });
-    onClose();
+    await executar(
+      () =>
+        finalizeService(ticket.id, {
+          servicesPerformed,
+          materialsUsed,
+          warrantyMonths: Number(warrantyMonths),
+          observations,
+        }),
+      onClose
+    );
   };
 
   return (
@@ -171,6 +175,8 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
             />
           </div>
 
+          <ErroAcao mensagem={erro} />
+
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
             <button
               type="button"
@@ -181,10 +187,11 @@ export const ServiceCompletionModal: React.FC<ServiceCompletionModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-1.5"
+              disabled={salvando}
+              className="disabled:opacity-60 disabled:cursor-not-allowed px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Concluir Chamado</span>
+              <span>{salvando ? 'CONCLUINDO…' : 'Concluir Chamado'}</span>
             </button>
           </div>
         </form>

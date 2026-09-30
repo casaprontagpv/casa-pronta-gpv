@@ -44,6 +44,18 @@ projeto_containers() {
   docker ps -aq --filter "label=com.supabase.cli.project=${PROJECT}" 2>/dev/null || true
 }
 
+# `supabase start` num projeto já de pé é no-op: ele NÃO acrescenta serviços.
+# Trocar de perfil exige parar antes — senão pedir o perfil APP com o mínimo
+# rodando devolve silenciosamente o mínimo, e o Auth "some" no meio dos testes.
+subir_perfil() {
+  local exclusoes="$1"
+  if [ -n "$(docker ps -q --filter "label=com.supabase.cli.project=${PROJECT}")" ]; then
+    supabase stop >/dev/null
+  fi
+  supabase start -x "$exclusoes"
+  desativar_autorestart
+}
+
 desativar_autorestart() {
   local ids
   ids="$(projeto_containers)"
@@ -56,20 +68,17 @@ desativar_autorestart() {
 
 case "${1:-}" in
   start)
-    supabase start -x "$EXCLUI_MINIMO"
-    desativar_autorestart
+    subir_perfil "$EXCLUI_MINIMO"
     echo "→ perfil MÍNIMO: só o Postgres. Use 'db:start:app' ou 'db:start:full' se precisar de mais."
     ;;
 
   start:app)
-    supabase start -x "$EXCLUI_APP"
-    desativar_autorestart
+    subir_perfil "$EXCLUI_APP"
     echo "→ perfil APP: Postgres, gateway, login, API REST, realtime e caixa de e-mail."
     ;;
 
   start:full)
-    supabase start -x "$EXCLUI_COMPLETO"
-    desativar_autorestart
+    subir_perfil "$EXCLUI_COMPLETO"
     echo "→ perfil COMPLETO. Studio em http://localhost:54323"
     ;;
 
@@ -86,9 +95,14 @@ case "${1:-}" in
     ;;
 
   reset)
-    supabase start -x "$EXCLUI_MINIMO" >/dev/null 2>&1 || true
+    # Não muda o perfil: se algo já está de pé, um `start` com outra lista de
+    # exclusão derrubaria os serviços extras — foi assim que o Auth sumiu no meio
+    # de uma rodada de testes de integração.
+    if [ -z "$(docker ps -q --filter "label=com.supabase.cli.project=${PROJECT}")" ]; then
+      supabase start -x "$EXCLUI_MINIMO" >/dev/null
+      desativar_autorestart
+    fi
     supabase db reset
-    desativar_autorestart
     ;;
 
   test)
@@ -99,8 +113,9 @@ case "${1:-}" in
       ESTAVA_UP=true
     fi
 
-    supabase start -x "$EXCLUI_MINIMO" >/dev/null
-    desativar_autorestart
+    if [ "$ESTAVA_UP" = false ]; then
+      subir_perfil "$EXCLUI_MINIMO" >/dev/null
+    fi
     supabase db reset
 
     # `set -e` abortaria aqui antes de encerrarmos os containers; o `|| CODIGO=$?`
