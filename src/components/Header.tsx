@@ -5,6 +5,7 @@ import { useApp } from '../context/useApp';
 import { useAuth } from '../auth/useAuth';
 import { ROLE_LABELS } from '../utils/helpers';
 import type { UserRole } from '../types';
+import type { EstadoConexao } from '../data/realtime';
 
 interface HeaderProps {
   onOpenNewTicket: () => void;
@@ -18,6 +19,19 @@ const ROLE_ACCENT: Record<UserRole, string> = {
   prestador: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
+/** Leitura honesta do estado da conexão ao vivo. */
+const AO_VIVO: Record<EstadoConexao, { ponto: string; titulo: string }> = {
+  ao_vivo: {
+    ponto: 'bg-emerald-400 animate-pulse',
+    titulo: 'Ao vivo — novidades aparecem sozinhas',
+  },
+  conectando: { ponto: 'bg-amber-400', titulo: 'Conectando…' },
+  sem_conexao: {
+    ponto: 'bg-slate-500',
+    titulo: 'Sem conexão ao vivo. Recarregue a página para ver o que mudou.',
+  },
+};
+
 export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
   const {
     currentUser,
@@ -26,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     setSelectedTicketId,
+    conexao,
   } = useApp();
   const { signOut } = useAuth();
 
@@ -45,7 +60,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTicket }) => {
       {/* Faixa superior: sessão e utilitários */}
       <div className="bg-slate-900 text-white px-4 py-1.5 text-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          {/* O ponto era decorativo e pulsava sempre. Agora diz a verdade: verde
+              só quando a tela está mesmo recebendo as mudanças dos outros. */}
+          <span
+            className={`inline-block w-2 h-2 rounded-full shrink-0 ${AO_VIVO[conexao].ponto}`}
+            title={AO_VIVO[conexao].titulo}
+            aria-label={AO_VIVO[conexao].titulo}
+          />
+          {conexao === 'sem_conexao' && (
+            <span className="hidden sm:inline text-amber-300 text-[11px] shrink-0">
+              sem atualização ao vivo
+            </span>
+          )}
           <span className="text-slate-400 shrink-0">Sessão:</span>
           <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700 truncate max-w-[220px]">
             {currentUser?.name}

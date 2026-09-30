@@ -5,13 +5,17 @@ Contém **o domínio e as regras de negócio** do sistema (a parte que não pode
 a arquitetura atual do código e o estado real de maturidade do projeto.
 
 > ⚠️ Este projeto nasceu como um protótipo gerado no **Google AI Studio** e foi extraído de um ZIP.
-> Ele é hoje um **protótipo funcional de front-end com dados em memória/localStorage** — não um sistema de produção.
-> A seção [Estado atual vs. Produção](#10-estado-atual-vs-produção) lista exatamente o que falta.
+> Hoje ele roda sobre **Supabase** (Postgres com RLS, Auth, Storage e Realtime) e tem alvo de
+> deploy na Vercel. O que já é real, o que continua sendo simulação e o que falta para publicar
+> estão na seção [Estado atual vs. Produção](#10-estado-atual-vs-produção).
 
 **Documentos irmãos:**
 
-- [`docs/PLANO-MIGRACAO.md`](docs/PLANO-MIGRACAO.md) — plano aprovado de migração para Vercel + Supabase (arquitetura alvo, schema, RLS, 8 etapas).
+- [`docs/ESTADO-DO-PROJETO.md`](docs/ESTADO-DO-PROJETO.md) — **comece por aqui** para saber o que está pronto, o que falta e o que depende de uma ação do cliente. É de lá que saem as tarefas.
+- [`docs/PLANO-MIGRACAO.md`](docs/PLANO-MIGRACAO.md) — plano aprovado de migração para Vercel + Supabase (arquitetura alvo, schema, RLS, etapas).
 - [`docs/LACUNAS-FUNCIONAIS.md`](docs/LACUNAS-FUNCIONAIS.md) — o que o sistema **não** faz, por decisão (SLA, garantia, alçada, faturamento, relatórios…).
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — runbook da Vercel, variáveis de ambiente e cabeçalhos de segurança.
+- [`docs/PRIMEIRO-ADMIN.md`](docs/PRIMEIRO-ADMIN.md) — como nasce a primeira conta num banco vazio.
 - [`docs/GUIA-GOOGLE-CLOUD.md`](docs/GUIA-GOOGLE-CLOUD.md) — limpeza do projeto Google herdado do AI Studio.
 
 ---
@@ -43,23 +47,37 @@ Idioma do produto: **pt-BR**. Moeda: **BRL**. Fuso: **America/Sao_Paulo**.
 | UI           | React 19 + TypeScript 5.8                                        |
 | Estilo       | Tailwind CSS v4 (via `@tailwindcss/vite`, sem `tailwind.config`) |
 | Ícones       | `lucide-react`                                                   |
+| Rotas        | `react-router-dom` 7 — o portal é derivado do papel da conta     |
 | Estado       | React Context único (`src/context/AppContext.tsx`)               |
-| Testes       | Vitest + Testing Library (99 testes)                             |
-| Persistência | **`localStorage` do navegador** (não há backend)                 |
+| Backend      | Supabase — Postgres, Auth, Storage privado e Realtime            |
+| Servidor     | Vercel Functions (`api/`) — só o que exige `service_role`        |
+| Persistência | **Postgres**, com RLS. Fotos em bucket privado                   |
+| Testes       | Vitest + Testing Library (131) e pgTAP (57 asserções de banco)   |
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
+npm run dev          # http://localhost:3000 — precisa do Supabase local no ar
 npm run build        # vite build -> dist/
 npm run typecheck    # tsc --noEmit (strict ligado)
 npm run lint         # ESLint 9 flat config
 npm run format       # Prettier
 npm run test         # Vitest
 npm run check        # typecheck + lint + test + build — o mesmo que o CI roda
+
+npm run db:start:app # Supabase local: Postgres, Auth, REST, Storage, Realtime
+npm run db:reset     # recria o banco a partir das migrations + seed
+npm run db:test      # pgTAP, com reset antes e devolvendo a máquina como estava
+npm run db:stop      # desliga os containers do projeto
+npm run db:push      # publica as migrations no projeto remoto
 ```
 
-Qualidade: TypeScript **strict**, ESLint + Prettier, Vitest e GitHub Actions (`.github/workflows/ci.yml`).
-Não há Dockerfile — o alvo de deploy é a Vercel (build estático).
+> **Ordem entre as suítes.** O pgTAP mede contagens exatas contra o seed ("a inquilina
+> enxerga EXATAMENTE 1 chamado"); as suítes de integração abrem chamados de verdade.
+> Rode **pgTAP antes** da integração, ou `db:reset` entre as duas. O CI faz nessa ordem.
+
+Qualidade: TypeScript **strict**, ESLint + Prettier, Vitest, pgTAP e GitHub Actions
+(`.github/workflows/ci.yml`, dois jobs: front-end e banco).
+Não há Dockerfile — o alvo de deploy é a Vercel; o Docker só roda o Supabase local.
 
 ---
 
@@ -67,22 +85,41 @@ Não há Dockerfile — o alvo de deploy é a Vercel (build estático).
 
 ```
 index.html
+supabase/
+  migrations/                   # A VERDADE do schema: tabelas, RLS, máquina de estados, RPCs
+  tests/                        # pgTAP — isolamento, transições e conflito de agenda
+  seed.sql                      # dados de demonstração; NÃO é aplicado em produção
+api/
+  admin/users.ts                # Vercel Function: criação de usuário (service_role)
+  _lib/adminAuth.ts             # valida o JWT e lê o papel NO BANCO antes do service_role
+  _lib/createUser.ts            # validação, senha temporária, chamada ao Auth
 src/
   main.tsx                      # bootstrap React + registro do Service Worker
-  App.tsx                       # shell: Header + view do portal ativo + modais globais
+  App.tsx                       # shell: rotas, Header, view do portal, modais globais
   types.ts                      # ÚNICA fonte de verdade dos tipos de domínio — leia primeiro
-  mockData.ts                   # seed de tickets/técnicos/agendamentos/notificações (demo)
-  mockUsers.ts                  # PRESET_USERS — usuários e senhas de demonstração
+  lib/
+    supabase.ts                 # cliente do navegador (anon key)
+    database.types.ts           # tipos gerados do schema (npm run db:types)
+  auth/
+    AuthProvider.tsx            # sessão, refresh de token, perfil do usuário
+    ProtectedRoute.tsx          # barreira de rota por papel — gating visual, não segurança
+    portalRoutes.ts             # papel -> rota do portal
+  data/                         # acesso ao banco. NENHUMA consulta filtra por usuário: é a RLS
+    tickets.ts                  # consultas e todas as RPCs, com erro já traduzido
+    mappers.ts                  # linhas do Postgres -> agregado do domínio
+    photos.ts                   # redução no cliente, upload, URL assinada
+    realtime.ts                 # assinaturas ao vivo — o evento é SINAL, não dado
+    datetime.ts                 # formatação pt-BR e conversão data+hora -> instante
   context/
     appContextTypes.ts          # AppContextType + a instância do contexto
-    AppContext.tsx              # AppProvider — TODA a lógica de negócio e persistência
+    AppContext.tsx              # AppProvider — orquestra estado, ações e realtime
     useApp.ts                   # hook de acesso (arquivo próprio por causa do Fast Refresh)
-  domain/                       # regras puras e testáveis, sem React
-    access.ts                   # isolamento de dados por papel (§6) — espelha a futura RLS
-    scheduling.ts               # conflito de agenda (§7) — vira constraint EXCLUDE no Postgres
+  domain/
+    scheduling.ts               # conflito de agenda (§7) — espelha a constraint EXCLUDE
+  admin/                        # painel administrativo: imobiliárias, imóveis, inquilinos, técnicos
+  pages/                        # LoginPage, AdminPage, recuperação e troca de senha
   components/
-    Header.tsx                  # troca de portal, notificações, sessão
-    LoginPortal.tsx             # login/cadastro por papel
+    Header.tsx                  # sessão, notificações, estado da conexão ao vivo
     views/
       TenantView.tsx            # portal do inquilino
       AgencyView.tsx            # portal da imobiliária (chamados / prontuário / métricas)
@@ -96,23 +133,30 @@ src/
     ServiceCompletionModal.tsx  # conclusão com fotos antes/depois e garantia
     EvaluationModal.tsx         # avaliação do inquilino
     TimelineViewer.tsx          # stepper visual das etapas
+    photos/                     # galeria (resolve URL assinada) e seletor de fotos
   utils/
     helpers.ts                  # labels, cores, formatação BRL, normalização, link WhatsApp
-    id.ts                       # createId() — IDs únicos por entidade
-  test/setup.ts                 # setup do Vitest
+  test/
+    setup.ts                    # setup do Vitest
+    integracao.ts               # guarda das suítes de integração: avisa local, FALHA no CI
 public/
   manifest.json, sw.js, icons   # PWA
 ```
 
 Testes ficam ao lado do código: `*.test.ts` / `*.test.tsx`.
+Os que exigem banco no ar são `*.integration.test.ts` e o CI os roda num job próprio.
 
 **Regra de ouro:** toda mutação de estado de domínio vive em `AppContext.tsx`.
 Componentes nunca escrevem estado direto — chamam as ações do contexto.
 
 **Segunda regra:** regra de negócio pura vai para `src/domain/`, não para dentro do componente.
 Foi assim que a detecção de conflito deixou de estar duplicada entre o contexto e o `ScheduleModal`.
-Cada módulo de `domain/` é a especificação executável de uma função/política que a Etapa 2
-recria no Postgres — os dois lados precisam dizer a mesma coisa.
+Cada módulo de `domain/` é a especificação executável de uma política que o Postgres também
+aplica — os dois lados precisam dizer a mesma coisa.
+
+**Terceira regra:** autorização é do banco. Nenhuma consulta de `src/data` filtra por usuário;
+o que chega já é o que a RLS permitiu. Se você se pegar escrevendo um filtro de propriedade no
+cliente, ou a política está errada ou o filtro é redundante — em nenhum dos casos o lugar é ali.
 
 ---
 
@@ -140,10 +184,9 @@ Appointment ──> technicianId ──> Technician
 NotificationItem ──> targetRoles: UserRole[]  (fan-out por papel, não por usuário)
 ```
 
-⚠️ **Duplicação conhecida:** `Appointment` existe tanto na lista global `appointments`
-quanto embutido em `ticket.appointment`. As duas cópias precisam ser atualizadas juntas
-(`syncAppointmentWithGoogle` e `finalizeService` fazem isso; `updateAppointmentStatus` **não** —
-ver [§11 Bugs](#11-bugs-e-inconsistências-conhecidos)).
+No banco, o agendamento existe **uma vez só**, na tabela `appointments`; `ticket.appointment` é
+montado por `mappers.ts` na leitura. No protótipo havia duas cópias que precisavam ser atualizadas
+juntas e divergiam — "Confirmar Presença" sumia da lista e continuava no detalhe do chamado.
 
 ### Enumerações de domínio
 
@@ -196,7 +239,10 @@ O caminho feliz, e quem dispara cada transição:
 Estados laterais: `pendente` (precisa de retorno/peça), `cancelado`, `aguardando_aprovacao`
 (declarado no tipo e com label, mas **nenhuma ação do sistema o define hoje**).
 
-### Regras de transição (implementadas em `AppContext`)
+### Regras de transição (RPCs em `supabase/migrations/…_rpc.sql`)
+
+Cada ação é uma função transacional no banco: registro, evento de timeline e notificações
+numa operação só. `AppContext` apenas as chama. As regras abaixo valem **no servidor**.
 
 1. **Toda** mudança de status acrescenta um `TimelineEvent` (append-only) e atualiza
    `updatedAt` / `lastActionAt`. A timeline nunca é editada nem removida.
@@ -213,16 +259,19 @@ Estados laterais: `pendente` (precisa de retorno/peça), `cancelado`, `aguardand
    e registra na timeline. É o "aceite" do inquilino.
 9. `submitEvaluation` também não muda status; anexa a avaliação e registra na timeline.
 
-> ⚠️ Não há hoje nenhuma validação que **impeça** uma transição fora de ordem: as ações estão
-> escondidas na UI conforme o status, mas `updateTicketStatus` aceita qualquer destino.
-> Ao migrar para backend, a máquina de estados precisa ser validada no servidor.
+A máquina de estados é validada por **trigger** (`enforce_ticket_status_transition`), contra a
+tabela `ticket_status_transitions`. Transição fora de ordem é recusada com erro, venha da
+interface ou de um `curl`. No protótipo, as ações só ficavam escondidas na tela e
+`updateTicketStatus` aceitava qualquer destino.
 
 ---
 
 ## 6. Isolamento de dados (multi-tenant) — regra crítica
 
-Implementado hoje apenas como filtro client-side em `AppContext` (`userTickets` / `userAppointments`).
-**A intenção de negócio é rígida** e precisa ser preservada (e, em produção, aplicada via RLS no banco):
+Aplicado por **RLS no Postgres** — 38 políticas em `…_rls.sql`, com a visibilidade do chamado
+concentrada em `can_read_ticket()` para que as tabelas filhas (timeline, chat, orçamento, anexos)
+herdem a regra em vez de cada uma repeti-la e arriscar divergir. Vale para o DevTools, para o
+`curl`, para o WebSocket do Realtime e para o Storage:
 
 | Papel         | Enxerga                                                          | NÃO pode enxergar                                                              |
 | ------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -231,23 +280,35 @@ Implementado hoje apenas como filtro client-side em `AppContext` (`userTickets` 
 | `empresa`     | **Tudo**: todos os chamados, agenda global, equipes, faturamento | —                                                                              |
 | `prestador`   | Chamados/agendamentos **atribuídos a ele**                       | Faturamento, carteira comercial                                                |
 
-⚠️ O casamento hoje é **heurístico e frouxo** — compara nome/endereço por `includes()` de string,
-e o filtro do técnico tem um fallback literal `includes('carlos')`. Isso é aceitável em demo e
-**inaceitável em produção**: deve virar chave estrangeira (`tenant_id`, `agency_id`, `technician_id`)
-e política RLS.
+O casamento é por **chave estrangeira** (`property_tenants`, `agency_members`,
+`technicians.profile_id`). No protótipo era comparação de endereço com `includes()` bidirecional
+— "Apto 402" casava com "Apto 201" e expunha o chamado do vizinho de andar — e o filtro do
+técnico tinha um fallback literal `includes('carlos')`.
 
-Observação de UI: `App.tsx` só renderiza a view se `currentUser.role === activePortalTab`;
-caso contrário mostra o `LoginPortal`. Isso é _gating_ visual, não segurança.
+A regra tem **27 asserções de regressão** em `supabase/tests/01_isolamento.test.sql`, incluindo
+o caso do vizinho de andar. Ao mexer em política, rode `npm run db:test`.
+
+Observação de UI: `ProtectedRoute` decide o portal pelo papel da conta. Isso é _gating_ visual;
+a segurança é a RLS. Os dois precisam concordar, mas só um dos dois protege.
 
 ---
 
 ## 7. Regras de agendamento
 
-- Um `Appointment` tem `date` (`YYYY-MM-DD`), `startTime` e `endTime` (`HH:MM`, string).
-- **Detecção de conflito** (`scheduleAppointment`): existe conflito quando, para o **mesmo técnico**
-  e **mesma data**, há sobreposição de janelas — `novoInicio < fimExistente && novoFim > inicioExistente` —
-  ignorando agendamentos com status `cancelado` ou `nao_realizado`.
-  Havendo conflito, a criação é **recusada** e o agendamento conflitante é devolvido para exibição.
+- No banco, um agendamento é uma janela `starts_at`/`ends_at` em `timestamptz`. O tipo do front
+  continua expondo `date` + `startTime`/`endTime`, convertidos em `src/data/datetime.ts`.
+- **Conflito é impossível, não improvável.** A regra é uma constraint do Postgres:
+
+  ```sql
+  exclude using gist (technician_id with =, tstzrange(starts_at, ends_at) with &&)
+    where (status not in ('cancelado', 'nao_realizado'))
+  ```
+
+  Dois operadores agendando o mesmo técnico no mesmo instante: um dos dois recebe erro.
+  Encostar não é sobrepor — `tstzrange` é `[início, fim)`, então 09–11 e 11–13 convivem.
+
+- `src/domain/scheduling.ts` repete a regra no cliente **para avisar antes**, não para garantir.
+  Se os dois divergirem, quem está certo é o banco.
 - `ScheduleModal` também valida `startTime < endTime` e mostra um aviso de conflito em tempo real
   enquanto o operador escolhe técnico/horário.
 - A grade da agenda da prestadora cobre **08:00–17:00** (`CompanyView`).
@@ -271,9 +332,9 @@ caso contrário mostra o `LoginPortal`. Isso é _gating_ visual, não segurança
 
 ## 9. Outras regras
 
-**Protocolo do chamado.** `protocol = '#' + (1030 + tickets.length)` e `id = 't-' + numero`.
-Sequencial derivado do tamanho do array — **colide** assim que houver concorrência.
-Em produção deve virar sequência no banco.
+**Protocolo do chamado.** Vem da sequência `ticket_protocol_seq` do Postgres, que começa em
+1030 — `'#' || nextval(...)`, como default da coluna. No protótipo era `1030 + tickets.length`
+e repetia assim que dois chamados nasciam ao mesmo tempo, ou depois de um reset de dados.
 
 **Garantia.** `ServiceCompletion.warrantyMonths` — padrão sugerido de **3 meses** no formulário.
 É registrado e exibido, mas o sistema **não** faz nada automático ao vencer.
@@ -282,16 +343,26 @@ Em produção deve virar sequência no banco.
 
 - comentário livre. Só faz sentido após `concluido`. Alimenta o CSAT exibido à imobiliária.
 
-**Notificações.** São in-app, por **papel** (`targetRoles: UserRole[]`), não por usuário.
-O `timestamp` das notificações criadas em runtime é a string literal `'Agora mesmo'`.
+**Notificações.** Uma linha **por destinatário** (`notifications.recipient_profile_id`), criada
+pelo fan-out de `notify_ticket()`, que expande papéis para as pessoas que enxergam o chamado.
+"Lido" é estado pessoal — nem a central lê a caixa dos outros. O protótipo tinha `targetRoles[]`
+num registro só, com um `read` global, o que não sobrevive a vários usuários.
 
-**Datas.** Todas as datas de domínio (`createdAt`, `updatedAt`, timeline, orçamento…) são gravadas
-como **string formatada pt-BR** (`"14/09/2025 às 13:26"`), não ISO. Isso impede ordenação e cálculo.
-Exceção: `Appointment.date` é ISO `YYYY-MM-DD`. Ao migrar, padronizar tudo para `timestamptz`.
+**Ao vivo.** `src/data/realtime.ts` assina `tickets`, `ticket_timeline`, `ticket_messages`,
+`appointments` e `notifications`. **O evento é sinal, não dado:** ao receber, o cliente relê pelo
+caminho normal (PostgREST, com RLS) em vez de aplicar o payload. Custa uma consulta a mais e
+compra duas coisas — se a avaliação de RLS do Realtime falhar, o pior caso é uma releitura vazia
+em vez de linha alheia na tela; e a montagem do chamado a partir de oito tabelas continua num
+lugar só (`mappers.ts`). `DELETE` não é assinado: o Realtime não consegue aplicar RLS sobre uma
+linha que já não existe.
 
-**Fotos.** São `string[]`. Podem ser URL do Unsplash (seed) **ou data-URI base64** do upload do
-usuário (`FileReader.readAsDataURL` em `NewTicketModal`). Vão inteiras para o `localStorage` —
-estouram a cota (~5 MB) rapidamente. Em produção: object storage + URL assinada.
+**Datas.** Tudo é `timestamptz` no banco. Formatar é responsabilidade exclusiva da apresentação
+(`src/data/datetime.ts`). O protótipo gravava string pt-BR (`"14/09/2025 às 13:26"`), o que
+impedia ordenar e calcular.
+
+**Fotos.** `MaintenanceTicket.photos` e similares guardam **caminhos** no bucket privado, não
+URLs. Não existe link permanente: a URL assinada (1 h) é pedida na exibição. O protótipo guardava
+base64 no `localStorage` e estourava a cota de ~5 MB do navegador em poucas fotos.
 
 **Métricas da imobiliária.** Os números da aba "Métricas & Indicadores" (`AgencyView`)
 — 1.8 dias, 92.4%, 4.9★, -80%, distribuição por categoria — são **hardcoded**, não calculados.
@@ -300,27 +371,35 @@ estouram a cota (~5 MB) rapidamente. Em produção: object storage + URL assinad
 
 ## 10. Estado atual vs. Produção
 
-> **Etapa 1 da migração concluída** (2026-09-21). As amarras do Google AI Studio saíram, os defeitos
-> conhecidos foram corrigidos e o projeto tem strict mode, lint, testes e CI.
-> Ver [`docs/PLANO-MIGRACAO.md`](docs/PLANO-MIGRACAO.md) para as etapas 2–8.
+> **O protótipo virou aplicação.** O `localStorage` saiu, o Postgres entrou, e o isolamento
+> entre inquilinos, imobiliárias e prestadora deixou de ser filtro de tela para ser política
+> do banco. O estado detalhado e as tarefas pendentes ficam em
+> [`docs/ESTADO-DO-PROJETO.md`](docs/ESTADO-DO-PROJETO.md).
 
 ### O que já é real e funciona
 
-Todos os fluxos de UI dos 4 portais; máquina de estados do chamado; detecção de conflito de agenda;
-timeline auditável; chat por chamado; upload de fotos; PWA instalável com service worker;
-deep links de WhatsApp e Google Maps.
+| Área             | Situação hoje                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Autenticação** | Supabase Auth: e-mail + senha, sessão persistida, recuperação e troca. Sem auto-cadastro, por decisão          |
+| **Autorização**  | RLS no Postgres — 38 políticas. Vale para o DevTools, para o `curl` e para o WebSocket                         |
+| **Persistência** | Postgres. Timeline e chat são compartilhados de verdade, não mais por navegador                                |
+| **Arquivos**     | Bucket **privado**, redução no cliente (1600 px / JPEG 0.8), URL assinada de 1 h. O EXIF é descartado          |
+| **Notificações** | Uma linha por destinatário, com "lido" pessoal. In-app e ao vivo. Sem e-mail, push ou WhatsApp                 |
+| **Ao vivo**      | Realtime em `tickets`, timeline, chat, agenda e notificações. O evento é sinal; quem traz o dado é a releitura |
+| **Cadastros**    | Painel administrativo cria imobiliárias, imóveis, inquilinos e técnicos com `service_role` no servidor         |
+| **Deploy**       | `vercel.json` pronto (rewrite de SPA, CSP, HSTS). **Ainda não publicado** — ver `ESTADO-DO-PROJETO.md` §4.1    |
 
-### O que é simulação e precisa ser substituído
+Mais os fluxos de UI dos 4 portais, a máquina de estados, o conflito de agenda garantido por
+constraint do banco, o PWA instalável e os deep links de WhatsApp e Google Maps.
 
-| Área             | Situação hoje                                                                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Autenticação** | Demonstração. `login()` casa identificador exato + senha em texto puro de `mockUsers.ts`. Vira Supabase Auth na Etapa 3.            |
-| **Autorização**  | Só filtro client-side (`src/domain/access.ts`). Quem abrir o DevTools vê tudo. Vira RLS no Postgres na Etapa 2.                     |
-| **Persistência** | `localStorage` por navegador. Nada é compartilhado entre usuários — o "chat" e a "timeline" só existem na máquina de quem escreveu. |
-| **Arquivos**     | Base64 dentro do `localStorage`. Vira Supabase Storage na Etapa 5.                                                                  |
-| **Notificações** | Só in-app, na sessão local, direcionadas por papel. Sem e-mail, push ou WhatsApp.                                                   |
-| **Dados**        | `mockData.ts` + `mockUsers.ts` são o seed; há botão "Resetar Dados" no header.                                                      |
-| **Deploy**       | Sem `vercel.json` e sem rewrite de SPA. Etapa 8.                                                                                    |
+### O que continua sendo simulação
+
+- **Métricas da imobiliária** — os números da aba "Métricas & Indicadores" são fixos no código.
+  Está em [`docs/LACUNAS-FUNCIONAIS.md`](docs/LACUNAS-FUNCIONAIS.md): é decisão, não esquecimento.
+  Não os apresente como reais.
+- **`seed.sql`** — usuários e chamados de demonstração, aplicados só no banco local.
+  O banco de produção nasce vazio; o primeiro administrador é criado à mão
+  (ver [`docs/PRIMEIRO-ADMIN.md`](docs/PRIMEIRO-ADMIN.md)).
 
 ### Amarras do Google AI Studio — todas removidas na Etapa 1
 
@@ -369,7 +448,7 @@ Registro do que estava errado, para que não volte. Cada item marcado com 🧪 t
 
 10. 🧪 IDs eram `` `${prefixo}-${Date.now()}` `` e **colidiam** quando duas entidades nasciam no mesmo
     milissegundo — o que acontece sempre, já que uma ação cria registro + timeline + notificação de
-    uma vez. Um chamado de 9 eventos tinha 5 IDs distintos. Virou `createId()` em `utils/id.ts`.
+    uma vez. Um chamado de 9 eventos tinha 5 IDs distintos. Hoje o id vem do Postgres.
 11. 🧪 O protocolo era `1030 + tickets.length` e repetia após um reset de dados. Agora deriva do
     maior protocolo existente.
 12. 🧪 `updateAppointmentStatus` atualizava a lista global mas não a cópia em `ticket.appointment`;
@@ -387,8 +466,14 @@ Registro do que estava errado, para que não volte. Cada item marcado com 🧪 t
 
 ## 12. Integrações externas
 
-Só restam deep links — nenhuma API, chave ou OAuth. É deliberado: o Google Calendar e o login com
-Google saíram do escopo em 2026-09-21 e estão no backlog (`docs/PLANO-MIGRACAO.md` §10).
+Fora o **Supabase** (banco, autenticação, arquivos e realtime) e a **Vercel** (hospedagem e a
+function do painel administrativo), só restam deep links — nenhuma API de terceiro, chave ou
+OAuth. É deliberado: o Google Calendar e o login com Google saíram do escopo em 2026-09-21 e
+estão no backlog (`docs/PLANO-MIGRACAO.md` §10).
+
+A `Content-Security-Policy` do `vercel.json` é restritiva e precisa continuar assim. Ela já libera
+`https://*.supabase.co` e `wss://*.supabase.co` em `connect-src` — o `wss` é o realtime. Integração
+nova exige liberar **o domínio dela**, nunca um `*`.
 
 **WhatsApp** — `generateWhatsAppLink()` monta `https://wa.me/55<digits>?text=…`. Usado no chat do
 técnico com o inquilino e no compartilhamento de status pelo detalhe do chamado.
@@ -416,16 +501,20 @@ técnico com o inquilino e no compartilhamento de status pelo detalhe do chamado
 - Todo texto de interface em **português do Brasil**.
 - Identificadores de domínio (status, papéis, categorias) em **português sem acento, snake_case**
   (`orcamento_aprovado`) — nomes de variáveis e funções em inglês.
-- IDs **sempre** via `createId(prefixo)` de `utils/id.ts` — nunca `Date.now()` direto, que colide
-  quando duas entidades nascem no mesmo milissegundo. Prefixos: `t-`, `tl-`, `msg-`, `rep-`, `qt-`,
-  `apt-`, `comp-`, `eval-`, `notif-`.
+- IDs são **`uuid` gerados pelo Postgres** (`gen_random_uuid()` como default da coluna). O cliente
+  nunca inventa id de entidade. O caminho de foto no Storage usa `crypto.randomUUID()`, que é o
+  mesmo princípio. Nada de `Date.now()`: no protótipo ele colidia sempre que duas entidades
+  nasciam no mesmo milissegundo — e uma única ação cria registro, timeline e notificação de uma vez.
 - Feedback de ação é **UI**, nunca `alert()`/`confirm()` — o ESLint recusa (`no-alert`).
 - Formulário **não** inventa dado: campo sem valor nasce vazio. Um default plausível vira registro
   permanente na timeline ou um orçamento que ninguém orçou (ver §11).
 - `any` é erro de lint. Se o tipo é difícil, o problema costuma ser a modelagem.
-- Ao adicionar um `TicketStatus` ou `AppointmentStatus`, atualize **obrigatoriamente**:
-  `types.ts` → `utils/helpers.ts` (label/cor/step) → `statusTitles` em `AppContext.updateTicketStatus`
+- Ao adicionar um `TicketStatus` ou `AppointmentStatus`, atualize **obrigatoriamente**, nesta ordem:
+  o `enum` do Postgres (nova migration) → `ticket_status_transitions`, senão a transição é recusada
+  → `ticket_status_label()` → `npm run db:types` → `types.ts` → `utils/helpers.ts` (label/cor/step)
   → filtros de `<select>` em `AgencyView`/`CompanyView` → `TimelineViewer`.
+  `src/lib/schemaContract.test.ts` falha se os tipos do banco e os de `types.ts` divergirem — é de
+  propósito, e é o teste que impede o front e o banco de contarem histórias diferentes.
 
 ---
 
@@ -433,8 +522,13 @@ técnico com o inquilino e no compartilhamento de status pelo detalhe do chamado
 
 - **Não** introduza dependência de Google AI Studio, Gemini ou Firebase. O objetivo declarado da
   refatoração é desacoplar o app de qualquer stack proprietária.
-- Ao portar para backend: `AppContext` é a especificação executável do domínio. Cada ação dele
-  (`createTicket`, `submitQuote`, `reviewQuote`, `scheduleAppointment`, `finalizeService`…) vira
-  um caso de uso no servidor, com a mesma validação **mais** a autorização que hoje não existe.
+- **A especificação do domínio agora é o banco.** Cada ação de `AppContext` corresponde a uma RPC
+  em `…_rpc.sql`, com validação e autorização do lado de lá. Regra nova de negócio nasce lá, não
+  no componente — senão ela vale para quem usa a tela e não vale para quem usa a API.
 - Preserve o isolamento por papel da §6 — é requisito de negócio, não detalhe de implementação.
-- Preserve a timeline append-only — é o diferencial do produto.
+  Ele tem teste (`supabase/tests/01_isolamento.test.sql`); mexeu em política, rode.
+- Preserve a timeline append-only — é o diferencial do produto. Ela é garantida pela **ausência**
+  de políticas de `UPDATE` e `DELETE` em `ticket_timeline`. Adicionar uma "por conveniência" é
+  desfazer a garantia.
+- Segredo nenhum vai para o cliente. `VITE_*` é embutido no bundle e visível; a `service_role`
+  ignora a RLS por completo e vive só nas variáveis de ambiente do servidor.

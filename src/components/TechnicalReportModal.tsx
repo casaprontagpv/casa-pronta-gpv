@@ -5,7 +5,8 @@ import { useApp } from '../context/useApp';
 import { useAcao } from '../hooks/useAcao';
 import { ErroAcao } from './ErroAcao';
 import { enviarFoto } from '../data/photos';
-import { PhotoUploader, descartarPreviews, type FotoSelecionada } from './photos/PhotoUploader';
+import { PhotoUploader } from './photos/PhotoUploader';
+import { descartarPreviews, type FotoSelecionada } from './photos/selecao';
 
 interface TechnicalReportModalProps {
   ticket: MaintenanceTicket;

@@ -17,6 +17,7 @@ import type {
   NovoOrcamento,
   ParecerTecnico,
 } from '../data/tickets';
+import type { EstadoConexao } from '../data/realtime';
 
 export interface AppContextType {
   /** Usuário autenticado, vindo do AuthProvider. */
@@ -49,6 +50,14 @@ export interface AppContextType {
   setSelectedTicketId: (id: string | null) => void;
   /** `true` enquanto o detalhe do chamado selecionado é carregado. */
   loadingSelected: boolean;
+
+  /**
+   * Estado da conexão ao vivo.
+   *
+   * Exposto porque a diferença importa para quem está usando: sem ele, a tela
+   * parada é indistinguível da tela sem novidade. O cabeçalho mostra isso.
+   */
+  conexao: EstadoConexao;
 
   // Ações. Todas assíncronas: agora há ida e volta ao banco, e a interface
   // precisa saber quando terminou e se deu certo.

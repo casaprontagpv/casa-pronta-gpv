@@ -1,12 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2, X } from 'lucide-react';
 import { MAXIMO_POR_ETAPA, validarArquivo } from '../../data/photos';
-
-export interface FotoSelecionada {
-  arquivo: File;
-  /** URL de objeto local, só para a pré-visualização. */
-  preview: string;
-}
+import type { FotoSelecionada } from './selecao';
 
 interface PhotoUploaderProps {
   fotos: FotoSelecionada[];
@@ -142,9 +137,4 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
       )}
     </div>
   );
-};
-
-/** Libera as URLs de pré-visualização — elas seguram o arquivo em memória. */
-export const descartarPreviews = (fotos: FotoSelecionada[]): void => {
-  for (const f of fotos) URL.revokeObjectURL(f.preview);
 };

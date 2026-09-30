@@ -12,6 +12,7 @@ import { AppContext, type AppContextType } from './appContextTypes';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../data/tickets';
 import { DataError } from '../data/tickets';
+import { assinarChamado, assinarListas, type EstadoConexao } from '../data/realtime';
 
 /**
  * Estado de domínio, agora vindo do Postgres.
@@ -47,9 +48,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedTicket, setSelectedTicket] = useState<MaintenanceTicket | null>(null);
   const [loadingSelected, setLoadingSelected] = useState(false);
 
+  const [conexao, setConexao] = useState<EstadoConexao>('conectando');
+
   // Descarta resultado de carregamento superado por outro (troca de sessão,
   // clique rápido entre chamados).
   const geracao = useRef(0);
+  // Mesma ideia para o detalhe: uma releitura disparada pelo realtime pode
+  // chegar depois de o chamado já ter sido fechado.
+  const idAberto = useRef<string | null>(null);
 
   const carregarTudo = useCallback(async () => {
     if (!currentUser) {
@@ -91,37 +97,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void carregarTudo();
   }, [carregarTudo]);
 
-  // O detalhe traz timeline e chat, que a lista não carrega por serem grandes.
-  const carregarDetalhe = useCallback(async (id: string | null) => {
+  /**
+   * O detalhe traz timeline e chat, que a lista não carrega por serem grandes.
+   *
+   * `silencioso` é para as releituras do realtime: uma mensagem nova no chat não
+   * pode apagar a tela e mostrar spinner, nem transformar uma falha momentânea
+   * de rede em faixa de erro sobre um conteúdo que continua correto.
+   */
+  const carregarDetalhe = useCallback(async (id: string | null, silencioso = false) => {
     if (!id) {
       setSelectedTicket(null);
       return;
     }
-    setLoadingSelected(true);
+    if (!silencioso) setLoadingSelected(true);
     try {
-      setSelectedTicket(await api.buscarChamado(id));
+      const chamado = await api.buscarChamado(id);
+      if (idAberto.current === id) setSelectedTicket(chamado);
     } catch (e) {
-      setError(mensagemDeErro(e));
+      if (!silencioso) setError(mensagemDeErro(e));
     } finally {
-      setLoadingSelected(false);
+      if (!silencioso) setLoadingSelected(false);
     }
   }, []);
 
   useEffect(() => {
+    idAberto.current = selectedTicketId;
     void carregarDetalhe(selectedTicketId);
   }, [selectedTicketId, carregarDetalhe]);
 
   const setSelectedTicketId = useCallback((id: string | null) => {
+    idAberto.current = id;
     setSelectedTicketIdState(id);
     if (!id) setSelectedTicket(null);
   }, []);
+
+  // ─── Ao vivo ──────────────────────────────────────────────────────────────
+  // O evento do Postgres é só o aviso de que algo mudou; quem traz o dado é a
+  // releitura normal, com RLS. Ver src/data/realtime.ts.
+
+  useEffect(() => {
+    if (!currentUser) {
+      setConexao('sem_conexao');
+      return;
+    }
+    return assinarListas(() => void carregarTudo(), setConexao);
+  }, [currentUser, carregarTudo]);
+
+  useEffect(() => {
+    if (!selectedTicketId) return;
+    return assinarChamado(selectedTicketId, () => void carregarDetalhe(selectedTicketId, true));
+  }, [selectedTicketId, carregarDetalhe]);
 
   /** Recarrega listas e, se houver, o detalhe aberto. */
   const refresh = useCallback(async () => {
     await Promise.all([carregarTudo(), carregarDetalhe(selectedTicketId)]);
   }, [carregarTudo, carregarDetalhe, selectedTicketId]);
 
-  /** Executa a ação e recarrega o que ela pode ter mudado. */
+  /**
+   * Executa a ação e recarrega o que ela pode ter mudado.
+   *
+   * Continua explícito mesmo com o realtime ligado: quem agiu precisa ver o
+   * resultado do próprio clique, e o realtime pode estar fora do ar — WebSocket
+   * bloqueado por proxy corporativo, rede de celular caindo. O evento que volta
+   * para quem agiu cai na mesma janela de agrupamento e não vira segunda leitura.
+   */
   const agirERecarregar = useCallback(
     async (acao: () => Promise<void>) => {
       await acao();
@@ -203,6 +242,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selectedTicket,
       setSelectedTicketId,
       loadingSelected,
+      conexao,
       ...acoes,
     }),
     [
@@ -218,6 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selectedTicket,
       setSelectedTicketId,
       loadingSelected,
+      conexao,
       acoes,
     ]
   );

@@ -285,14 +285,18 @@ não publica nada acessível — a primeira URL no ar já vem com login de verda
 
 Nesta ordem, cada item publicando em homologação ao concluir:
 
-| #   | Etapa                                               | Por que está aqui                                                                                 |
-| --- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1   | **Autenticação** (antiga Etapa 3)                   | Nada é publicável sem isto                                                                        |
-| 2   | **Painel administrativo** (antiga Etapa 7)          | Cria imobiliárias, imóveis, inquilinos e técnicos. Sem ele não há primeiro usuário                |
-| 3   | **Camada de dados** (antiga Etapa 4)                | Substitui o `localStorage`; o ciclo do chamado precisa fechar de ponta a ponta                    |
-| 4   | **Fotos no Storage** (antiga Etapa 5)               | Foto do vazamento e antes/depois são feature base — cortar seria regredir em relação ao protótipo |
-| 5   | **Notificações** (antiga Etapa 6)                   | Barato: tabela, trigger e RPC já existem desde a Etapa 2; falta só a leitura na interface         |
-| 6   | **PWA, domínio e observabilidade** (antiga Etapa 8) | Service worker corrigido, Sentry, e o apontamento do domínio                                      |
+| #   | Etapa                                               | Situação                  | Por que está aqui                                                                                 |
+| --- | --------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | **Autenticação** (antiga Etapa 3)                   | ✅ 2026-09-30 · `4d4f7f1` | Nada é publicável sem isto                                                                        |
+| 2   | **Painel administrativo** (antiga Etapa 7)          | ✅ 2026-09-30 · `8d66d25` | Cria imobiliárias, imóveis, inquilinos e técnicos. Sem ele não há primeiro usuário                |
+| 3   | **Camada de dados** (antiga Etapa 4)                | ✅ 2026-09-30 · `b9b4dea` | Substitui o `localStorage`; o ciclo do chamado precisa fechar de ponta a ponta                    |
+| 4   | **Fotos no Storage** (antiga Etapa 5)               | ✅ 2026-09-30 · `c9bda57` | Foto do vazamento e antes/depois são feature base — cortar seria regredir em relação ao protótipo |
+| 5   | **Notificações e realtime** (antiga Etapa 6)        | ✅ 2026-09-30             | Barato: tabela, trigger e RPC já existem desde a Etapa 2; falta só a leitura na interface         |
+| 6   | **PWA, domínio e observabilidade** (antiga Etapa 8) | ⏳ próximo                | Service worker corrigido, Sentry, e o apontamento do domínio                                      |
+
+O estado detalhado, com o que falta e o que depende de você, fica em
+[`ESTADO-DO-PROJETO.md`](./ESTADO-DO-PROJETO.md) — é de lá que saem as tarefas
+para tocar em conversas separadas.
 
 Escopo mínimo coerente: o ciclo precisa fechar (abrir → analisar → orçar → aprovar →
 agendar → executar → concluir → avaliar). Remover qualquer fatia da camada de dados
@@ -335,10 +339,21 @@ Substituição do `localStorage` pelo Supabase, em fatias entregáveis:
 Upload com redução no cliente (1600 px / JPEG 0.8), URL assinada, galerias de antes/depois,
 limite de tamanho e quantidade.
 
-#### Notificações
+#### Notificações e realtime
 
 Badge com contagem real por usuário, marcar como lida, realtime. O fan-out por trigger
 já existe desde a Etapa 2.
+
+Entregue com uma decisão que vale registrar: **o evento do Realtime é sinal, não dado**.
+Ao receber a notificação de mudança, o cliente relê pelo caminho normal (PostgREST, com
+RLS) em vez de aplicar o payload na tela. Custa uma consulta a mais por evento e compra
+duas coisas — se a avaliação de RLS do Realtime falhar algum dia, o pior caso é uma
+releitura que não traz nada, em vez de linha alheia na tela; e a montagem do chamado a
+partir de oito tabelas continua existindo num lugar só (`mappers.ts`).
+
+Tabelas na publicação `supabase_realtime`: `tickets`, `ticket_timeline`, `ticket_messages`,
+`appointments`, `notifications`. As demais ficam de fora porque toda RPC que escreve nelas
+também chama `log_timeline()` — a linha nova na timeline já é o aviso.
 
 #### PWA, deploy e observabilidade
 

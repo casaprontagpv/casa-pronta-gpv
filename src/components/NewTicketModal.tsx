@@ -5,7 +5,8 @@ import { useAcao } from '../hooks/useAcao';
 import { ErroAcao } from './ErroAcao';
 import { listarImoveisDisponiveis } from '../data/tickets';
 import { enviarFoto } from '../data/photos';
-import { PhotoUploader, descartarPreviews, type FotoSelecionada } from './photos/PhotoUploader';
+import { PhotoUploader } from './photos/PhotoUploader';
+import { descartarPreviews, type FotoSelecionada } from './photos/selecao';
 import { getCategoryLabel } from '../utils/helpers';
 import type { Category, PreferredPeriod, PriorityLevel } from '../types';
 

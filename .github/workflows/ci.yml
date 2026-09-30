@@ -73,18 +73,28 @@ jobs:
             | grep -E '^(VITE_SUPABASE_URL|VITE_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY)=' \
             >> "$GITHUB_ENV"
 
-      - name: Testes de integração
-        # Ciclo de vida do chamado e autorização do endpoint administrativo,
-        # contra o banco de verdade. Com CI=true a suíte FALHA se o banco não
-        # responder, em vez de se pular em silêncio.
-        env:
-          CI: 'true'
-        run: npm run test -- --run '**/*.integration.test.ts'
-
       - name: Testes de banco (pgTAP)
         # Isolamento por papel, máquina de estados e conflito de agenda.
         # É a prova de que nenhuma imobiliária enxerga a carteira da outra.
+        #
+        # ANTES da integração, e a ordem é obrigatória: estas asserções são do
+        # tipo "a inquilina enxerga EXATAMENTE 1 chamado", medidas contra o seed.
+        # As suítes de integração abrem chamados de verdade e mudariam a
+        # contagem. O pgTAP roda dentro de transação com rollback, então não
+        # deixa rastro para quem vem depois.
         run: npx supabase test db
+
+      - name: Testes de integração
+        # Ciclo de vida do chamado, fotos no Storage, realtime e autorização do
+        # endpoint administrativo, contra o banco de verdade. Com CI=true a
+        # suíte FALHA se o banco não responder, em vez de se pular em silêncio.
+        #
+        # O filtro é SUBSTRING de caminho, não glob: o `'**/*.integration.test.ts'`
+        # que estava aqui não casava com nada e o passo morria em "No test files
+        # found" — um job vermelho que parecia problema de banco.
+        env:
+          CI: 'true'
+        run: npm run test -- integration.test
 
       - name: Verificar que as migrations refletem o schema
         # `db diff` vazio garante que ninguém alterou o banco pelo Studio sem
