@@ -72,5 +72,17 @@ export default tseslint.config(
     languageOptions: {
       globals: globals.node,
     },
+  },
+  {
+    // Scripts de operação, rodados à mão no terminal. `console` é a interface
+    // deles com quem está olhando, não depuração esquecida.
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': 'off',
+    },
   }
 );

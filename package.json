@@ -28,7 +28,8 @@
     "db:purge": "bash scripts/db.sh purge",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "verificar:producao": "node scripts/verificar-producao.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
