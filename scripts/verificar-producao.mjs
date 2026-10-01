@@ -25,6 +25,16 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3aWd0c2VmYmlhanFmeHFpcWFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMxNDMsImV4cCI6MjEwNjI5OTE0M30.w9CXBbuY-5ySpE3eTylZVQ4j16SxidaI2iO7Q_EBuqI';
 const APP = process.env.APP_URL ?? 'https://casa-pronta-gpv.vercel.app';
 
+/**
+ * Pergunta no terminal, escondendo o que for senha.
+ *
+ * Exige TTY de verdade. Sem ele o `readline` nunca recebe resposta e o processo
+ * morre com "unsettled top-level await" — erro que não diz nada a quem está
+ * olhando. É o caso de rodar por dentro de outra ferramenta, que repassa a saída
+ * mas não o teclado.
+ */
+const temTeclado = process.stdin.isTTY === true;
+
 const perguntar = (texto, oculto = false) =>
   new Promise((resolve) => {
     const rl = readline.createInterface({
@@ -79,8 +89,27 @@ else falha('login anônimo', 'ligado — não há caso de uso para isso neste pr
 
 console.log('');
 
-const email = (await perguntar('E-mail: ')) || 'casaprontagpv@gmail.com';
-const senha = await perguntar('Senha (não aparece): ', true);
+// As verificações acima não precisam de sessão. As de baixo precisam.
+const email = process.env.CP_EMAIL ?? (temTeclado ? await perguntar('E-mail: ') : '');
+const senha =
+  process.env.CP_SENHA ?? (temTeclado ? await perguntar('Senha (não aparece): ', true) : '');
+
+if (!senha) {
+  console.log(
+    'As verificações que exigem sessão foram PULADAS: não há senha e não há\n' +
+      'teclado disponível (stdin não é um terminal).\n\n' +
+      '  • Rode numa janela de terminal comum, e ele pergunta a senha; ou\n' +
+      '  • read -rs CP_SENHA && CP_SENHA=$CP_SENHA npm run verificar:producao\n' +
+      '    (o `read -rs` não ecoa a senha nem a deixa no histórico)\n'
+  );
+  console.log(
+    falhas === 0
+      ? '\x1b[33mO que não dependia de sessão passou.\x1b[0m\n'
+      : `\x1b[31m${falhas} verificação(ões) falharam.\x1b[0m\n`
+  );
+  process.exit(falhas === 0 ? 0 : 1);
+}
+
 console.log('');
 
 const cliente = createClient(URL_BASE, ANON, {
@@ -89,7 +118,7 @@ const cliente = createClient(URL_BASE, ANON, {
 
 // ── 1. Login ────────────────────────────────────────────────────────────────
 const { data: sessao, error: erroLogin } = await cliente.auth.signInWithPassword({
-  email,
+  email: email || 'casaprontagpv@gmail.com',
   password: senha,
 });
 
