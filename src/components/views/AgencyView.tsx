@@ -3,6 +3,20 @@ import { useApp } from '../../context/useApp';
 import { MaintenanceTicket } from '../../types';
 import { Search, Building, FileText, ChevronRight, BarChart3, Home } from 'lucide-react';
 import { getStatusConfig, formatCurrency, getCategoryLabel } from '../../utils/helpers';
+import {
+  csat,
+  distribuicaoPorCategoria,
+  taxaAprovacaoOrcamentos,
+  tempoMedioAtendimentoDias,
+} from '../../domain/metricas';
+
+/** Indicador sem base para cálculo. Dizer isso é melhor do que mostrar zero. */
+const SemBase: React.FC<{ texto: string }> = ({ texto }) => (
+  <>
+    <span className="text-2xl font-black text-slate-300 block mt-1">—</span>
+    <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">{texto}</span>
+  </>
+);
 
 export const AgencyView: React.FC = () => {
   const { userTickets, currentUser, setSelectedTicketId } = useApp();
@@ -14,6 +28,18 @@ export const AgencyView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [categoryFilter, setCategoryFilter] = useState<string>('todos');
   const [selectedPropertyAddress, setSelectedPropertyAddress] = useState<string>('');
+
+  // Indicadores calculados sobre a carteira que a RLS entregou. Quando não há
+  // base, a função devolve `null` e a tela diz isso — nunca um número inventado.
+  const indicadores = useMemo(
+    () => ({
+      tempoMedio: tempoMedioAtendimentoDias(userTickets),
+      aprovacao: taxaAprovacaoOrcamentos(userTickets),
+      satisfacao: csat(userTickets),
+      categorias: distribuicaoPorCategoria(userTickets),
+    }),
+    [userTickets]
+  );
 
   // Filtered tickets strictly restricted to this agency's managed properties
   const filteredTickets = useMemo(() => {
@@ -308,6 +334,11 @@ export const AgencyView: React.FC = () => {
               Selecione o Imóvel Administrado
             </h3>
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+              {addressList.length === 0 && (
+                <p className="p-6 text-center text-xs text-slate-400">
+                  Nenhum imóvel com chamado registrado ainda.
+                </p>
+              )}
               {addressList.map((addr) => {
                 const count = uniqueAddresses.get(addr)?.length || 0;
                 const isSelected = addr === activeProntuarioAddress;
@@ -356,6 +387,11 @@ export const AgencyView: React.FC = () => {
 
               {/* Maintenance list for this property */}
               <div className="space-y-3">
+                {prontuarioHistory.length === 0 && (
+                  <p className="text-xs text-slate-400 py-4 text-center">
+                    Nenhuma manutenção registrada para este imóvel.
+                  </p>
+                )}
                 {prontuarioHistory.map((t) => (
                   <div
                     key={t.id}
@@ -401,83 +437,100 @@ export const AgencyView: React.FC = () => {
       {/* TAB 3: MÉTRICAS & INDICADORES */}
       {activeTab === 'metricas' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200">
               <span className="text-xs text-slate-500 font-semibold block">
                 Tempo Médio de Atendimento
               </span>
-              <span className="text-2xl font-black text-slate-900 block mt-1">1.8 Dias</span>
-              <span className="text-[11px] text-emerald-600 font-bold mt-1 inline-block">
-                ↓ 45% mais rápido que WhatsApp
-              </span>
+              {indicadores.tempoMedio ? (
+                <>
+                  <span className="text-2xl font-black text-slate-900 block mt-1">
+                    {indicadores.tempoMedio.dias.toLocaleString('pt-BR')}{' '}
+                    {indicadores.tempoMedio.dias === 1 ? 'dia' : 'dias'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
+                    Da abertura à conclusão · {indicadores.tempoMedio.base}{' '}
+                    {indicadores.tempoMedio.base === 1
+                      ? 'chamado concluído'
+                      : 'chamados concluídos'}
+                  </span>
+                </>
+              ) : (
+                <SemBase texto="Nenhum chamado concluído ainda." />
+              )}
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200">
               <span className="text-xs text-slate-500 font-semibold block">
                 Taxa de Aprovação de Orçamentos
               </span>
-              <span className="text-2xl font-black text-slate-900 block mt-1">92.4%</span>
-              <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
-                Valores transparentes e homologados
-              </span>
+              {indicadores.aprovacao ? (
+                <>
+                  <span className="text-2xl font-black text-slate-900 block mt-1">
+                    {indicadores.aprovacao.percentual.toLocaleString('pt-BR')}%
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
+                    Sobre {indicadores.aprovacao.base}{' '}
+                    {indicadores.aprovacao.base === 1
+                      ? 'orçamento decidido'
+                      : 'orçamentos decididos'}
+                  </span>
+                </>
+              ) : (
+                <SemBase texto="Nenhum orçamento decidido ainda." />
+              )}
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200">
               <span className="text-xs text-slate-500 font-semibold block">
                 Satisfação do Inquilino (CSAT)
               </span>
-              <span className="text-2xl font-black text-amber-500 block mt-1">4.9 ★</span>
-              <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
-                Baseado em 48 avaliações
-              </span>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200">
-              <span className="text-xs text-slate-500 font-semibold block">
-                Redução de Mensagens Desnecessárias
-              </span>
-              <span className="text-2xl font-black text-indigo-600 block mt-1">-80%</span>
-              <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
-                Tudo centralizado na linha do tempo
-              </span>
+              {indicadores.satisfacao ? (
+                <>
+                  <span className="text-2xl font-black text-amber-500 block mt-1">
+                    {indicadores.satisfacao.media.toLocaleString('pt-BR')} ★
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium mt-1 inline-block">
+                    Baseado em {indicadores.satisfacao.base}{' '}
+                    {indicadores.satisfacao.base === 1 ? 'avaliação' : 'avaliações'}
+                  </span>
+                </>
+              ) : (
+                <SemBase texto="Nenhuma avaliação recebida ainda." />
+              )}
             </div>
           </div>
 
-          {/* Breakdown by Category */}
+          {/* Distribuição real por categoria */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
             <h3 className="text-sm font-bold text-slate-900">
               Distribuição de Chamados por Categoria
             </h3>
-            <div className="space-y-2 text-xs">
-              {[
-                {
-                  cat: '💧 Hidráulica (Vazamentos e tubulações)',
-                  count: 18,
-                  pct: 45,
-                  color: 'bg-blue-500',
-                },
-                {
-                  cat: '⚡ Elétrica (Chuveiros, disjuntores, tomadas)',
-                  count: 12,
-                  pct: 30,
-                  color: 'bg-amber-500',
-                },
-                { cat: '🌧️ Infiltração e Telhado', count: 6, pct: 15, color: 'bg-purple-500' },
-                { cat: '🚪 Fechaduras e Esquadrias', count: 4, pct: 10, color: 'bg-emerald-500' },
-              ].map((row) => (
-                <div key={row.cat} className="space-y-1">
-                  <div className="flex justify-between font-medium text-slate-700">
-                    <span>{row.cat}</span>
-                    <span className="font-bold">
-                      {row.count} chamados ({row.pct}%)
-                    </span>
+            {indicadores.categorias.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">
+                Nenhum chamado na carteira ainda.
+              </p>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {indicadores.categorias.map((fatia) => (
+                  <div key={fatia.categoria} className="space-y-1">
+                    <div className="flex justify-between font-medium text-slate-700">
+                      <span>{getCategoryLabel(fatia.categoria)}</span>
+                      <span className="font-bold">
+                        {fatia.quantidade} {fatia.quantidade === 1 ? 'chamado' : 'chamados'} (
+                        {fatia.percentual.toLocaleString('pt-BR')}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500"
+                        style={{ width: `${fatia.percentual}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${row.color}`} style={{ width: `${row.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -47,9 +47,11 @@ As garantias que sustentam o produto estão no banco, não na tela:
 | Autoria não forjável    | `auth.uid()` como default de coluna, e política recusando valor diferente |
 
 Além disso: autenticação com Supabase Auth, painel administrativo criando os
-quatro tipos de usuário, timeline/chat/notificações ao vivo, e PWA instalável.
+quatro tipos de usuário, timeline/chat/notificações ao vivo, PWA instalável e os
+indicadores da imobiliária calculados sobre os chamados reais
+(`src/domain/metricas.ts`), que mostram "—" enquanto não houver base.
 
-**Verificação:** 131 testes de front (106 de unidade + 25 de integração), 57
+**Verificação:** 140 testes de front (115 de unidade + 25 de integração), 57
 asserções pgTAP, `supabase db diff` limpo, build passando.
 
 ---
@@ -186,6 +188,10 @@ exige liberar **o domínio dele** em `connect-src`, nunca um `*`.
   `lucide-react` resolve a maior parte.
 - `src/data/datetime.ts` usa o deslocamento fixo `-03:00`. Correto para o Brasil
   de hoje, que não tem horário de verão. Se voltar, é o único arquivo a mudar.
+- `MaintenanceTicket` carrega a data duas vezes: `createdAt` formatada para
+  exibição e `createdAtIso` para cálculo. A redundância existe porque o mapeador
+  formata na leitura e a interface inteira já consome a versão legível. O certo
+  seria guardar só o instante e formatar na renderização.
 
 ---
 

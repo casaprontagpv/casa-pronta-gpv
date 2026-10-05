@@ -125,7 +125,10 @@ export interface Appointment {
 export interface ServiceCompletion {
   id: string;
   ticketId: string;
+  /** Já formatado para exibição. Para calcular, use `completedAtIso`. */
   completionDate: string;
+  /** Instante absoluto, para cálculo de duração. */
+  completedAtIso: string;
   servicesPerformed: string;
   materialsUsed: string;
   warrantyMonths: number;
@@ -163,7 +166,16 @@ export interface Technician {
 export interface MaintenanceTicket {
   id: string;
   protocol: string;
+  /**
+   * Já formatado para exibição ("21/09/2026 às 09:00").
+   *
+   * Para qualquer conta com datas use `createdAtIso`: string formatada não se
+   * ordena nem se subtrai. Os dois convivem porque a formatação é de saída e
+   * toda a interface já consome a versão legível.
+   */
   createdAt: string;
+  /** Instante absoluto, para cálculo de duração. */
+  createdAtIso: string;
   updatedAt: string;
   tenantName: string;
   tenantPhone: string;

@@ -46,10 +46,14 @@ export const TenantView: React.FC<TenantViewProps> = ({ onOpenNewTicket }) => {
           </h2>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-100/90 mb-4">
-            <span className="flex items-center gap-1 font-semibold">
-              <MapPin className="w-3.5 h-3.5 text-emerald-300" />
-              {currentUser?.propertyAddress || 'Rua das Acácias, 450 - Apto 402'}
-            </span>
+            {/* Sem fallback: um endereço inventado aqui seria o endereço de
+                outra pessoa, exibido a quem mora em outro lugar. */}
+            {currentUser?.propertyAddress && (
+              <span className="flex items-center gap-1 font-semibold">
+                <MapPin className="w-3.5 h-3.5 text-emerald-300" />
+                {currentUser.propertyAddress}
+              </span>
+            )}
             {currentUser?.agencyName && (
               <span className="flex items-center gap-1 text-emerald-200/80">
                 <Building2 className="w-3.5 h-3.5 text-emerald-300" />

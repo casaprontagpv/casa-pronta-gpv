@@ -303,6 +303,7 @@ export const paraConclusao = (
   id: l.id,
   ticketId: l.ticket_id,
   completionDate: formatarDataHora(l.completed_at),
+  completedAtIso: l.completed_at,
   servicesPerformed: l.services_performed,
   materialsUsed: l.materials_used,
   warrantyMonths: l.warranty_months,
@@ -374,6 +375,7 @@ export const paraChamado = (l: LinhaChamado): MaintenanceTicket => {
     id: l.id,
     protocol: l.protocol,
     createdAt: formatarDataHora(l.created_at),
+    createdAtIso: l.created_at,
     updatedAt: formatarDataHora(l.updated_at),
     lastActionAt: formatarDataHora(l.last_action_at),
 

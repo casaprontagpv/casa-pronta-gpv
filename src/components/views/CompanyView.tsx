@@ -61,12 +61,25 @@ export const CompanyView: React.FC = () => {
     });
   }, [appointments, agendaSelectedTech, agendaMode, selectedDate]);
 
-  // Daily route points (interactive simulation of section 27)
+  // Paradas do dia, em ordem cronológica.
   const todayAppointments = useMemo(() => {
     return appointments
       .filter((a) => a.date === todayStr)
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [appointments, todayStr]);
+
+  // Técnicos efetivamente em campo agora, contados pelo status do atendimento.
+  // Antes isto era o literal "3", que continuava afirmando três técnicos em
+  // trânsito num sistema sem técnico nenhum cadastrado.
+  const tecnicosEmCampo = useMemo(
+    () =>
+      new Set(
+        todayAppointments
+          .filter((a) => a.status === 'em_deslocamento' || a.status === 'em_atendimento')
+          .map((a) => a.technicianId)
+      ).size,
+    [todayAppointments]
+  );
 
   // Metrics
   const todayCount = todayAppointments.length;
@@ -75,7 +88,7 @@ export const CompanyView: React.FC = () => {
   const waitingVistoriaCount = tickets.filter((t) => t.status === 'aguardando_vistoria').length;
   const scheduledCount = tickets.filter((t) => t.status === 'servico_agendado').length;
 
-  const totalEstimatedRevenue = tickets.reduce((acc, t) => {
+  const totalQuoted = tickets.reduce((acc, t) => {
     return acc + (t.quote?.totalCost || 0);
   }, 0);
 
@@ -93,7 +106,7 @@ export const CompanyView: React.FC = () => {
             Gestão Operacional de Serviços & Equipes
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Coordenação de chamados, roteirização de prestadores, vistorias e orçamentos
+            Coordenação de chamados, designação de técnicos, vistorias e orçamentos
           </p>
         </div>
 
@@ -215,17 +228,22 @@ export const CompanyView: React.FC = () => {
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              {/* "Faturamento" prometia receita. Isto é a soma de TODO orçamento
+                  emitido — aprovado ou não, executado ou não. O rótulo precisa
+                  dizer o que o número é. */}
               <span className="text-[11px] font-bold text-slate-500 block uppercase">
-                Faturamento
+                Valor Orçado
               </span>
               <span className="text-xl font-black text-emerald-600 mt-1 block truncate">
-                {formatCurrency(totalEstimatedRevenue)}
+                {formatCurrency(totalQuoted)}
               </span>
-              <span className="text-[10px] text-slate-400">Total orçado</span>
+              <span className="text-[10px] text-slate-400">
+                Todos os orçamentos emitidos, aprovados ou não
+              </span>
             </div>
           </div>
 
-          {/* Section 27: MAPA INTERATIVO DE MANUTENÇÕES DO DIA COM ROTA */}
+          {/* Rota do dia */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
@@ -236,7 +254,7 @@ export const CompanyView: React.FC = () => {
                   </h3>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Visualização geográfica da sequência de atendimentos de campo das equipes
+                  Ordem cronológica dos atendimentos de campo das equipes
                 </p>
               </div>
 
@@ -253,15 +271,27 @@ export const CompanyView: React.FC = () => {
 
                 <div className="relative z-10 flex items-center justify-between">
                   <span className="text-[11px] font-mono tracking-widest text-indigo-400 uppercase bg-slate-900/80 px-2.5 py-1 rounded-md border border-indigo-900/50">
-                    SISTEMA DE GEOLOCALIZAÇÃO • SÃO PAULO - SP
+                    Sequência de atendimentos
                   </span>
-                  <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />3 Técnicos
-                    em Trânsito
-                  </span>
+                  {tecnicosEmCampo > 0 ? (
+                    <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      {tecnicosEmCampo}{' '}
+                      {tecnicosEmCampo === 1 ? 'técnico em campo' : 'técnicos em campo'}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-500">
+                      Nenhum técnico em campo agora
+                    </span>
+                  )}
                 </div>
 
-                {/* Animated Route Node Graphic */}
+                {/* Paradas do dia */}
+                {todayAppointments.length === 0 && (
+                  <div className="relative z-10 py-10 text-center text-sm text-slate-500">
+                    Nenhum atendimento agendado para hoje.
+                  </div>
+                )}
                 <div className="relative z-10 py-6 grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
                   {todayAppointments.map((apt, idx) => (
                     <div
@@ -292,10 +322,11 @@ export const CompanyView: React.FC = () => {
                 </div>
 
                 <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-3">
-                  <span>Km estimado total da rota: 28.4 km</span>
-                  <span className="text-indigo-400 font-semibold">
-                    Economia de combustível por roteirização inteligente: ~22%
+                  <span>
+                    {todayAppointments.length}{' '}
+                    {todayAppointments.length === 1 ? 'parada' : 'paradas'} hoje
                   </span>
+                  <span>Clique numa parada para abrir o chamado</span>
                 </div>
               </div>
 
@@ -397,6 +428,21 @@ export const CompanyView: React.FC = () => {
           </div>
 
           {/* Cards List */}
+          {filteredTickets.length === 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+              <p className="text-sm font-semibold text-slate-600">
+                {tickets.length === 0
+                  ? 'Nenhum chamado aberto ainda.'
+                  : 'Nenhum chamado para os filtros selecionados.'}
+              </p>
+              {tickets.length === 0 && (
+                <p className="text-xs text-slate-400 mt-1">
+                  Os chamados aparecem aqui assim que um inquilino ou uma imobiliária abrir o
+                  primeiro.
+                </p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredTickets.map((t) => {
               const statusCfg = getStatusConfig(t.status);
@@ -424,7 +470,7 @@ export const CompanyView: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-[11px] text-slate-400 block mt-0.5">
-                        Imobiliária: {t.assignedAgencyName || 'Aliança Imóveis'}
+                        Imobiliária: {t.assignedAgencyName || '—'}
                       </span>
                     </div>
 
@@ -617,6 +663,15 @@ export const CompanyView: React.FC = () => {
       {activeTab === 'equipe' && (
         <div className="space-y-6">
           {/* Team specialty cards */}
+          {technicians.length === 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+              <p className="text-sm font-semibold text-slate-600">Nenhum técnico cadastrado.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Cadastre a equipe em <span className="font-semibold">Administração</span> para poder
+                designar e agendar atendimentos.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {technicians.map((tech) => {
               const assignedApts = appointments.filter(

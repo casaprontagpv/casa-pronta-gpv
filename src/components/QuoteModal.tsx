@@ -185,17 +185,15 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-                <div>
-                  <span className="font-semibold text-slate-500 block">Prazo de Execução:</span>
-                  <p className="text-slate-800 font-bold mt-0.5">
-                    {existingQuote.executionDeadlineDays} dia(s) útil(eis)
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-500 block">Garantia Técnica:</span>
-                  <p className="text-slate-800 font-bold mt-0.5">90 dias inclusa</p>
-                </div>
+              {/* A garantia NÃO é campo do orçamento: ela é definida no registro
+                  de conclusão, pelo técnico que executou. O valor fixo de "90
+                  dias inclusa" que havia aqui prometia um prazo contratual que
+                  ninguém tinha acordado, na tela em que a imobiliária aprova. */}
+              <div className="pt-2 border-t border-slate-200">
+                <span className="font-semibold text-slate-500 block">Prazo de Execução:</span>
+                <p className="text-slate-800 font-bold mt-0.5">
+                  {existingQuote.executionDeadlineDays} dia(s) útil(eis)
+                </p>
               </div>
 
               {existingQuote.notes && (
