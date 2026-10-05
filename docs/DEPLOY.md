@@ -1,71 +1,92 @@
-# Deploy — Vercel + Supabase
+# Deploy e operação — Vercel + Supabase
 
-Runbook de publicação. A configuração fica em [`vercel.json`](../vercel.json);
-as variáveis, em [`.env.example`](../.env.example).
+Runbook do ambiente no ar. A configuração da hospedagem fica em
+[`vercel.json`](../vercel.json); as variáveis, em [`.env.example`](../.env.example).
 
-> **Estado:** infraestrutura preparada, **nada publicado em produção**. Por decisão,
-> nenhuma URL vai ao ar enquanto o login for de demonstração — a primeira publicação
-> acontece junto com a autenticação real.
+| Ambiente        | Onde                         | Banco                                         |
+| --------------- | ---------------------------- | --------------------------------------------- |
+| Desenvolvimento | `npm run dev` na máquina     | Supabase local, em Docker (`db:start:app`)    |
+| Preview         | Deploy por branch, na Vercel | Mesmo projeto Supabase da produção            |
+| Produção        | `casa-pronta-gpv.vercel.app` | Supabase `cwigtsefbiajqfxqiqaa` (`sa-east-1`) |
 
----
-
-## Ambientes
-
-| Ambiente        | Onde                          | Supabase                                           |
-| --------------- | ----------------------------- | -------------------------------------------------- |
-| Desenvolvimento | `npm run dev` na máquina      | Local, em Docker (`db:start`)                      |
-| Homologação     | Preview da Vercel, por branch | Projeto `casa-pronta` (sa-east-1)                  |
-| Produção        | Domínio final                 | Projeto próprio, criado na última etapa do Marco 1 |
-
-Homologação e produção **não compartilham banco**. Enquanto o produto não está no ar,
-o projeto `sa-east-1` serve como homologação; o de produção nasce limpo, sem seed.
+> Preview e produção **compartilham banco**. Enquanto o volume de dados reais for pequeno isso é
+> aceitável; a partir do momento em que houver operação de verdade, um projeto Supabase separado
+> para preview deixa de ser luxo.
 
 ---
 
-## Primeira configuração na Vercel
+## Variáveis de ambiente
 
-1. <https://vercel.com/new> → importar o repositório.
-2. **Framework:** Vite (detectado automaticamente). Build, output e install vêm do `vercel.json`.
-3. **Environment Variables** — em Project Settings → Environment Variables:
+São três — as únicas que o código lê (`src/lib/supabase.ts` e `api/_lib/adminAuth.ts`):
 
-   | Variável                    | Ambientes           | Valor                                   |
-   | --------------------------- | ------------------- | --------------------------------------- |
-   | `VITE_SUPABASE_URL`         | Preview, Production | `https://<ref>.supabase.co`             |
-   | `VITE_SUPABASE_ANON_KEY`    | Preview, Production | Project Settings → API → `anon public`  |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Production          | Project Settings → API → `service_role` |
+| Variável                    | Escopo                | Onde obter                              |
+| --------------------------- | --------------------- | --------------------------------------- |
+| `VITE_SUPABASE_URL`         | Preview + Production  | Project Settings → API                  |
+| `VITE_SUPABASE_ANON_KEY`    | Preview + Production  | Project Settings → API → `anon public`  |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Production apenas** | Project Settings → API → `service_role` |
 
-   A `service_role` **não** leva prefixo `VITE_`. Com o prefixo ela entraria no bundle
-   e qualquer visitante teria acesso irrestrito ao banco, ignorando toda a RLS.
+A `service_role` **não** leva prefixo `VITE_`. Com o prefixo ela entraria no bundle, e qualquer
+visitante teria acesso irrestrito ao banco, ignorando toda a RLS. Ela também não precisa existir
+em Preview: cada branch gera uma URL pública.
 
-4. **Deployment Protection** → deixe os previews protegidos enquanto o produto não estiver no ar.
-
-### Depois do primeiro deploy
-
-O banco de produção nasce sem nenhum usuário, e o sistema não tem auto-cadastro.
-Ver [`PRIMEIRO-ADMIN.md`](./PRIMEIRO-ADMIN.md) — é um procedimento manual de dois
-minutos, executado uma vez na vida do sistema.
+Use as chaves **legadas** (JWT, começam com `eyJ`), não as novas `sb_publishable_` / `sb_secret_`:
+são as que o ambiente local usa e contra as quais as suítes de integração rodam.
 
 ---
 
-## Publicando o banco
+## Configuração de Auth — não está no repositório
 
-As migrations vão para o Supabase pela CLI, não pela Vercel:
+O `supabase/config.toml` configura o Supabase **local**. O `db push` envia migrations, não
+configuração de Auth. Tudo abaixo é painel do Supabase, e precisa ser conferido lá:
 
-```bash
-npx supabase login                               # uma vez, no seu terminal (precisa de TTY)
-npx supabase link --project-ref <ref>            # pede a senha do banco no prompt
-npm run db:push                                  # aplica as migrations
-```
+| Configuração     | Valor correto                                               | Onde                           |
+| ---------------- | ----------------------------------------------------------- | ------------------------------ |
+| Cadastro público | **Desligado** — o sistema não tem auto-cadastro             | Authentication → Sign In       |
+| Login anônimo    | Desligado                                                   | Authentication → Sign In       |
+| Site URL         | `https://casa-pronta-gpv.vercel.app`                        | Authentication → URL Config    |
+| Redirect URLs    | `https://casa-pronta-gpv.vercel.app/**`                     | Authentication → URL Config    |
+| SMTP             | Provedor próprio — o embutido é limitado e serve só a teste | Authentication → SMTP Settings |
 
-`seed.sql` **nunca** vai junto — ele cria usuários com senha conhecida e existe só para
-desenvolvimento.
+`npm run verificar:producao` confere o cadastro público e o login anônimo sem precisar de sessão, e
+falha se alguém reabrir. Rode depois de qualquer mexida no painel.
 
-Depois de qualquer migration nova:
+---
+
+## Publicando
+
+**Front-end:** automático. Todo push em `main` dispara o deploy de produção; outras branches geram
+preview. Se o projeto tiver acabado de ser conectado ao repositório, a Vercel não reprocessa o
+histórico — é preciso um push novo para o primeiro build acontecer.
+
+**Banco:** pela CLI, nunca pela Vercel.
 
 ```bash
 npm run db:test      # as 57 asserções pgTAP precisam passar antes
-npm run db:push
+npm run db:push      # aplica as migrations no projeto remoto
 npm run db:types     # regenera src/lib/database.types.ts
+```
+
+`seed.sql` **nunca** vai junto — ele cria usuários com senha conhecida e existe só para
+desenvolvimento. O banco de produção nasce vazio; a primeira conta é criada à mão, ver
+[`PRIMEIRO-ADMIN.md`](./PRIMEIRO-ADMIN.md).
+
+---
+
+## Verificando o que está no ar
+
+```bash
+npm run verificar:producao
+```
+
+Entra pela porta da frente: cadastro público fechado, login, papel do perfil, leitura sob RLS,
+conexão do realtime e o endpoint administrativo aceitando a sessão. A senha é pedida no terminal,
+não aparece na tela e não é gravada; nada é criado.
+
+Num terminal sem teclado — rodando por dentro de outra ferramenta — as verificações que exigem
+sessão são **puladas com aviso**, nunca em silêncio. Para rodá-las assim:
+
+```bash
+read -rs CP_SENHA && CP_SENHA=$CP_SENHA npm run verificar:producao
 ```
 
 ---
@@ -74,18 +95,18 @@ npm run db:types     # regenera src/lib/database.types.ts
 
 Definidos no `vercel.json` e aplicados a todas as respostas:
 
-| Cabeçalho                   | Para quê                                                                                                         |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `Content-Security-Policy`   | Restringe de onde o app carrega script, estilo, fonte, imagem e conexão. Bloqueia injeção de script de terceiros |
-| `Strict-Transport-Security` | Força HTTPS por 2 anos, inclusive em subdomínios                                                                 |
-| `X-Frame-Options: DENY`     | Impede que o app seja embutido em iframe (clickjacking)                                                          |
-| `X-Content-Type-Options`    | Impede o navegador de adivinhar tipo de conteúdo                                                                 |
-| `Referrer-Policy`           | Não vaza a URL completa (que contém protocolo do chamado) para sites externos                                    |
-| `Permissions-Policy`        | Libera câmera e geolocalização só para o próprio app; bloqueia microfone e pagamento                             |
+| Cabeçalho                   | Para quê                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `Content-Security-Policy`   | Restringe de onde o app carrega script, estilo, fonte, imagem e conexão              |
+| `Strict-Transport-Security` | Força HTTPS por 2 anos, inclusive em subdomínios                                     |
+| `X-Frame-Options: DENY`     | Impede que o app seja embutido em iframe (clickjacking)                              |
+| `X-Content-Type-Options`    | Impede o navegador de adivinhar tipo de conteúdo                                     |
+| `Referrer-Policy`           | Não vaza a URL completa (que contém protocolo do chamado) para sites externos        |
+| `Permissions-Policy`        | Libera câmera e geolocalização só para o próprio app; bloqueia microfone e pagamento |
 
 ### Ao mexer na CSP
 
-A política atual cobre exatamente o que o app usa hoje:
+A política cobre exatamente o que o app usa:
 
 - `fonts.googleapis.com` e `fonts.gstatic.com` — as fontes do `index.html`
 - `images.unsplash.com` — fotos do seed de demonstração
@@ -94,14 +115,14 @@ A política atual cobre exatamente o que o app usa hoje:
 
 `wa.me` e `google.com/maps` **não** aparecem: são destinos de link, não requisições.
 
-Se adicionar qualquer recurso externo, a CSP precisa ser atualizada junto — senão o
-navegador bloqueia em silêncio e o erro só aparece no console de quem estiver usando.
+Recurso externo novo exige liberar **o domínio dele**, nunca um `*`. Sem isso o navegador bloqueia
+em silêncio, e o erro só aparece no console de quem estiver usando.
 
 ### Cache
 
-`/assets/*` tem hash no nome e é imutável: um ano de cache. `index.html` e `sw.js`
-são sempre revalidados — é o que garante que um deploy novo chegue imediatamente,
-o mesmo problema que o service worker tinha na Etapa 1.
+`/assets/*` tem hash no nome e é imutável: um ano de cache. `index.html` e `sw.js` são sempre
+revalidados — é o que garante que um deploy novo chegue imediatamente, sem ninguém precisar
+desinstalar o PWA.
 
 ---
 
@@ -111,6 +132,6 @@ o mesmo problema que o service worker tinha na Etapa 1.
 /((?!api/).*)  →  /index.html
 ```
 
-Toda rota que não comece com `api/` cai no `index.html`, para o roteamento do
-navegador funcionar em link direto e refresh. A exceção de `api/` preserva as
-Vercel Functions do painel administrativo.
+Toda rota que não comece com `api/` cai no `index.html`, para o roteamento do navegador funcionar
+em link direto e refresh. A exceção de `api/` preserva as Vercel Functions do painel
+administrativo.

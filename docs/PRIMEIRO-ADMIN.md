@@ -1,91 +1,61 @@
-# Criando a primeira conta em produção
+# Primeira conta e recuperação de acesso
 
-Um banco de produção novo tem **zero usuários**, e o sistema não tem auto-cadastro:
-quem cria conta é o painel administrativo, que por sua vez exige uma conta com papel
-`empresa` para ser acessado.
+O banco de produção nasce com **zero usuários**, e o sistema não tem auto-cadastro: quem cria conta
+é o painel administrativo, que por sua vez exige uma conta com papel `empresa` para ser acessado.
 
-É um ovo e uma galinha, e ele se resolve **uma única vez**, à mão. Depois disso, toda
-conta nasce pelo painel.
-
----
-
-## Passo 1 — Criar o usuário no Supabase Auth
-
-No painel do Supabase do projeto de **produção**:
-
-1. **Authentication → Users → Add user → Create new user**
-2. Preencha:
-   - **Email:** o e-mail do administrador da Casa Pronta
-   - **Password:** uma senha forte, guardada no gerenciador de senhas
-   - **Auto Confirm User:** ✅ **marcado** — sem isso a pessoa não consegue entrar
-3. **Create user**
-
-> O trigger `on_auth_user_created` cria o `profile` automaticamente. Como o painel do
-> Supabase não envia `user_metadata`, o papel cai no padrão **`inquilino`** — o de menor
-> privilégio. É intencional: um papel alto não deve nascer por acidente.
+É um ovo e uma galinha, e ele se resolve **uma única vez**, à mão. Depois disso, toda conta nasce
+pelo painel.
 
 ---
 
-## Passo 2 — Promover a conta a `empresa`
+## Criando a primeira conta
+
+### Passo 1 — criar o usuário no Supabase Auth
+
+No painel do Supabase do projeto de produção: **Authentication → Users → Add user → Create new
+user**.
+
+- **Email:** o e-mail do administrador da Casa Pronta
+- **Password:** senha forte, guardada no gerenciador de senhas
+- **Auto Confirm User:** ✅ **marcado** — sem isso a pessoa não consegue entrar
+
+O perfil é criado automaticamente por trigger. Como o painel do Supabase não envia metadados, o
+papel cai no padrão **`inquilino`**, o de menor privilégio: papel alto não deve nascer por
+acidente.
+
+### Passo 2 — promover a conta a `empresa`
 
 No **SQL Editor** do mesmo projeto, trocando o e-mail:
 
 ```sql
 update public.profiles
 set role = 'empresa',
-    name = 'Casa Pronta Manutenções (Central)'
+    name = 'Casa Pronta Admin'
 where email = 'admin@SEU-DOMINIO.com.br';
 ```
 
 Confirme que pegou **exatamente uma linha**:
 
 ```sql
-select id, name, email, role, active
-from public.profiles
-where role = 'empresa';
+select id, name, email, role, active from public.profiles where role = 'empresa';
 ```
 
----
+### Passo 3 — entrar e cadastrar o resto
 
-## Passo 3 — Entrar e usar o painel
+Acesse a aplicação com esse e-mail e senha. Você cai na central, e o botão **Administração**
+aparece no cabeçalho.
 
-1. Acesse a aplicação e entre com esse e-mail e senha.
-2. Você cai na central; o botão **Administração** aparece no cabeçalho.
-3. Cadastre nesta ordem — ela é a ordem de dependência:
-   1. **Imobiliária**
-   2. **Imóvel** (pertence a uma imobiliária)
-   3. **Inquilino** (vinculado a um imóvel)
-   4. **Técnicos** (independentes)
+Cadastre nesta ordem — ela é a de dependência:
+
+1. **Imobiliária**
+2. **Imóvel** (pertence a uma imobiliária)
+3. **Inquilino** (vinculado a um imóvel)
+4. **Técnicos** (independentes)
 
 A partir daqui nada mais é feito por SQL.
 
----
-
-## Por que não automatizamos isto
-
-Três caminhos foram considerados:
-
-**Seed de produção.** Colocaria uma senha conhecida numa migration versionada. Todo
-mundo com acesso ao repositório teria a credencial do administrador.
-
-**Variável de ambiente com a senha inicial.** Melhor, mas a senha ficaria no painel da
-Vercel, visível a qualquer pessoa com acesso ao projeto, e sobreviveria indefinidamente
-a um valor que deveria ser efêmero.
-
-**Endpoint de bootstrap** que cria o primeiro admin se não houver nenhum. É uma rota
-pública que cria um superusuário — e toda proteção que se coloque nela é mais frágil do
-que simplesmente não existir.
-
-Um procedimento manual de dois minutos, executado uma vez na vida do sistema, é mais
-seguro do que qualquer automação aqui.
-
----
-
-## Em desenvolvimento
-
-Nada disso é necessário: o `supabase/seed.sql` já cria `admin@casapronta.com.br` com
-papel `empresa` e senha `senha123`. Esse seed **nunca** é aplicado em produção — o
-`db push` não o envia.
+> **Crie uma segunda conta `empresa` logo no começo.** Perder a única significa voltar ao SQL
+> Editor.
 
 ---
 
@@ -93,8 +63,15 @@ papel `empresa` e senha `senha123`. Esse seed **nunca** é aplicado em produçã
 
 Enquanto houver **outra** conta `empresa`, ela cria a reposição pelo painel.
 
-Se for a única, o caminho é o mesmo do passo 2: promover outra conta existente via SQL
-Editor, ou redefinir a senha em **Authentication → Users → ⋮ → Send password recovery**.
+Se for a única:
 
-Recomendação: mantenha **duas** contas `empresa` desde o início. Perder a única
-significa voltar ao SQL Editor.
+- **Esqueceu a senha:** Authentication → Users → ⋮ → _Send password recovery_. Depende do SMTP
+  estar configurado (ver [`DEPLOY.md`](./DEPLOY.md)).
+- **Perdeu a conta inteira:** crie outro usuário pelo passo 1 e promova pelo passo 2.
+
+---
+
+## Em desenvolvimento
+
+Nada disso é necessário: o `supabase/seed.sql` já cria `admin@casapronta.com.br` com papel
+`empresa` e senha `senha123`. Esse seed **nunca** é aplicado em produção — o `db push` não o envia.
